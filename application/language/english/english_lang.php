@@ -4663,9 +4663,9 @@ $lang['contract_send_to_client_preview_template'] = 'Preview Email Template';
 
 $lang['include_attachments_to_email']             = 'Include attachments to email';
 
-$lang['contract_sent_to_client_success']          = 'The contract is successfully sent to the customer';
+$lang['contract_sent_to_client_success']          = 'The Email is successfully sent to the customer';
 
-$lang['contract_sent_to_client_fail']             = 'Failed to send contract';
+$lang['contract_sent_to_client_fail']             = 'Failed to send the Email';
 
 
 

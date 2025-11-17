@@ -3338,4 +3338,5 @@ $lang['po_send_to_otherparty_modal_heading']    = 'Send PO to Otherparty';
 $lang['po_approval']     ='PO Approval - %s';
 
 $lang['latest_purchase_order']     ='Latest Purchase Order';
+$lang['revew_now']     ='Review Now';
 
