@@ -6978,6 +6978,7 @@ if (!is_admin()) {
                 $output['aaData'][] = $row;
 				 
 				 }
+                   }
            /* foreach ($footer_data as $key => $total) {
                 $footer_data[$key] = format_money($total, $currency_symbol);
             }*/
@@ -6985,7 +6986,7 @@ if (!is_admin()) {
             //$output['sums'] = $footer_data;
             echo json_encode($output);
             die();
-        }
+      
     }
 }
 
@@ -8247,5 +8248,110 @@ if ($aRow['is_receivable'] == 1) {
 
         }
     }
+        public function posapproval_report()
+    {
+        if ($this->input->is_ajax_request()) {
 
+            $select = array(
+                'tblapprovals.id as id',
+                'tblcontracts.subject as name',
+                 'other_party',
+               // db_prefix() . 'services.name as service_name',
+                db_prefix() . 'contracts.dateadded as submission_date',
+                get_sql_select_client_company(),
+                'tblapprovals.addedfrom as addedfrom',
+                'tblapprovals.dateadded as dateadded',
+               'approval_name',
+               'approvaldue_date',
+                //'tblapprovals.staffid as staffid',
+               
+            );
+            $where = array();
+           /* $custom_date_select = $this->get_where_report_period('start_date');
+            if ($custom_date_select != '') {
+                array_push($where, $custom_date_select);
+            }*/
+
+          
+            array_push($where, 'AND tblapprovals.rel_type = "po"'  );
+            array_push($where, 'AND tblapprovals.approval_status = 2'  );
+            
+    
+        //  if(!is_admin()){
+            array_push($where, 'AND tblapprovals.staffid = '.get_staff_user_id());
+             
+        //  }
+            $aColumns     = $select;
+            $sIndexColumn = "id";
+            $sTable       = 'tblapprovals';
+            $join             = array(
+                'LEFT JOIN tblcontracts ON tblcontracts.id = tblapprovals.rel_id',
+                'INNER JOIN tblclients ON tblclients.userid = tblcontracts.client',
+            );
+             $result = data_tables_init($aColumns, $sIndexColumn, $sTable, $join, $where, [db_prefix() . 'contracts.id as contractid','tblcontracts.client','approval_key' ]);
+           
+
+            $output  = $result['output'];
+            $rResult = $result['rResult'];
+
+            $footer_data = array(
+              
+            );
+
+           
+            $j=1;
+            foreach ($rResult as $aRow) {
+                $row = array();
+                 if(get_option('contract_approval')=='sequential'){ 
+                   //   echo get_nextapprover_bykey($aRow['contractid'],'contract',$aRow['approval_key']);
+                    if(get_nextapprover_bykey($aRow['contractid'],'contract',$aRow['approval_key'])==$aRow['id']){
+                $row[] = $j++;
+                  $subjectOutput = '<a href="' . admin_url('contracts/contract/' . $aRow['contractid']) . '"' . ' target="_blank"'  . '>' . $aRow['name'] . '</a>';
+             
+                $row[] = $subjectOutput;
+                
+                $row[] = $aRow['company'];
+                $row[] = get_opposite_party_name($aRow['other_party']);
+                //$row[] = $aRow['service_name'];
+                $row[] = $aRow['submission_date'];
+            //  $row[] = $aRow['priority'];
+                $row[] = get_staff_full_name($aRow['addedfrom']);
+                $row[] = $aRow['dateadded'];
+                $row[] = $aRow['approval_name'];
+                $row[] =_d($aRow['approvaldue_date']);
+              // $row[] = _l($aRow['approval_status']);
+               $row[]='<a class="btn btn-success" style="border-radius: 12px;" href="' . admin_url('contracts/contract/' . $aRow['contractid']) . '?tab=tab_contract">' . _l('sign_now'). '</a>';
+                $output['aaData'][] = $row;
+           }
+                 }else{
+                      $row[] = $j++;
+                  $subjectOutput = '<a href="' . admin_url('contracts/contract/' . $aRow['contractid']) . '"' . ' target="_blank"'  . '>' . $aRow['name'] . '</a>';
+             
+                $row[] = $subjectOutput;
+                
+                $row[] = $aRow['company'];
+                $row[] = get_opposite_party_name($aRow['other_party']);
+                //$row[] = $aRow['service_name'];
+                $row[] = $aRow['submission_date'];
+            //  $row[] = $aRow['priority'];
+                $row[] = get_staff_full_name($aRow['addedfrom']);
+                $row[] = _d($aRow['dateadded']);
+                $row[] = $aRow['approval_name'];
+                 $row[] = _d($aRow['dateadded']);
+              // $row[] = _l($aRow['approval_status']);
+               $row[]='<a class="btn btn-success" style="border-radius: 12px;" href="' . admin_url('contracts/contract/' . $aRow['contractid']) . '?tab=tab_contract">' . _l('sign_now'). '</a>';
+                $output['aaData'][] = $row;
+                 
+                 }
+                   }
+           /* foreach ($footer_data as $key => $total) {
+                $footer_data[$key] = format_money($total, $currency_symbol);
+            }*/
+
+            //$output['sums'] = $footer_data;
+            echo json_encode($output);
+            die();
+      
+    }
+}
 }
