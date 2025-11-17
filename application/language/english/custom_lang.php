@@ -3333,4 +3333,7 @@ $lang['po_sign_preview'] = 'PO Preview';
 $lang['upload_po'] = 'Upload PO';
 $lang['add_new'] = 'Add New';
 $lang['po'] = 'PO';
+$lang['po_send_to_client_modal_heading']    = 'Send PO to email';
+$lang['po_send_to_otherparty_modal_heading']    = 'Send PO to Otherparty';
+$lang['po_approval']     ='PO Approval - %s';
 

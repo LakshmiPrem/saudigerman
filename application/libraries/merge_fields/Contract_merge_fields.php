@@ -16,7 +16,7 @@ class Contract_merge_fields extends App_merge_fields
                 ],
                 [
                     'name'      => 'Contract Subject',
-                    'key'       => '{contract_subject}',
+                    'key'       => '{subject}',
                     'available' => [
                         'contract',
                     ],

@@ -13,7 +13,7 @@
   <!-- LEFT HALF: PDF Preview -->
   <div style="flex: 1; border-right: 1px solid #ddd; display: flex; flex-direction: column;">
     <div style="background: #f8f9fa; padding: 10px; border-bottom: 1px solid #ddd;">
-      <h4 style="margin: 0;">Contract PDF Preview</h4>
+      <h4 style="margin: 0;">PDF Preview</h4>
     </div>
     <iframe 
         src="<?= admin_url('contracts/view_uploadpdf/' . $contract->id); ?>#toolbar=0&navpanes=0&scrollbar=0" 
@@ -47,7 +47,8 @@
 
             if ($approver_exists && $approver_exists->approval_status != 7) { ?>
                 <div class="text-start" style="margin-top:10px;"> 
-                    <a href="<?= admin_url('contracts/review_pdf/' . $contract->id); ?>" 
+                    <a href="<?= admin_url('contracts/review_pdf/' . $contract->id . '/' . $contract->type); ?>"
+
                        class="btn btn-success">
                         <i class="fa fa-file-pdf-o"></i> Review PDF
                     </a>
@@ -66,11 +67,12 @@
 <script>
 $(document).ready(function() {
     var type = 'overview';
-    var rel_id = <?php echo $contract->id; ?>
-				
+    var rel_id = <?php echo (int)$contract->id; ?>;   
+    var rel_name = "<?php echo ($contract->type == 'contracts' ? 'contract' : 'po'); ?>";
+    
 				$('#approval_table_div').html('');
 				$.ajax({
-					url: "<?php echo admin_url('approval/table')?>/"+'contract'+'/'+rel_id,
+					url: "<?php echo admin_url('approval/table')?>/" + rel_name + "/" + rel_id,
 					data: {
                         
                         type: type,

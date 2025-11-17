@@ -1110,18 +1110,12 @@ public function approvals()
                 $approverName = get_staff_full_name($insert['staffid']);
                 $remarks = $insert['approval_remarks'];
                 $addedBy = get_staff_full_name($insert['addedfrom']);
-$type=$data['rel_type'];
-if($type=='contracts'){
-    $email_subject=_l('Contract Assigned for Your Review & Signature');
-}else{
-    $email_subject=_l('Purchase Order Assigned for Your Review & Signature');
-    
-}
+
                 // ✅ Build email message
                 $message = "
                     Dear {$approverName},<br><br>
 
-                    A new '.$type.' has been assigned to you for review and signature in the system.<br><br>
+                    A new contract has been assigned to you for review and signature in the system.<br><br>
 
                     <strong>Remarks from creator:</strong><br>
                     {$remarks}<br><br>
@@ -1138,7 +1132,7 @@ if($type=='contracts'){
                 $this->load->model('emails_model'); 
                 $this->emails_model->send_simple_email(
                     get_staff($insert['staffid'])->email, 
-                    $email_subject,
+                    _l('Contract Assigned for Your Review & Signature'),
                     $message
                 );
 
@@ -1187,7 +1181,7 @@ if($type=='contracts'){
                     $description = 'expense_approval';
                 }
                 
-                if($data['rel_type'] == 'contract' && get_option('contract_approval') == 'sequential') {
+                if(($data['rel_type'] == 'contract' || $data['rel_type'] == 'po') && get_option('contract_approval') == 'sequential') {
                     if($notify == 0) {
                         $notified = add_notification([
                             'description'     => $description,
@@ -1248,11 +1242,12 @@ if($type=='contracts'){
     $data['rel_name'] = $this->input->get('rel_name');
     $data['rel_id'] = $this->input->get('rel_id');
     $data['staffs'] = $this->staff_model->get('', $whereStaff);
-     if($data['rel_name']=='po'){
+    if($data['rel_name']=='po'){
         $data['approval_headings'] = $this->approval_model->get('', ['rel_type' => 'contract']);
     }else{
         $data['approval_headings'] = $this->approval_model->get('', ['rel_type' => $data['rel_name']]);
     }
+    
     $data['statuses'] = $this->tickets_model->get_ticket_status();
     
     // ✅ Get existing reminder data if editing
@@ -1427,7 +1422,7 @@ if($type=='contracts'){
     $this->db->select("*")->limit(1)->order_by('id','DESC')->get('tblapprovals')->row();
     $approvals = $this->approval_model->getapprovalsbykey($rel_name,$rel_id);
     $tbody = '';
-   
+    
     if(sizeof($approvals) > 0 ) {
         /*$tbody .= '<ul class="nav nav-tabs" id="nav-tab" role="tablist">';
         foreach ($approvals as $key=> $approvalk) {

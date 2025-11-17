@@ -50,7 +50,7 @@ foreach ($contract_approvals as $approval) {
             $approval['status'] !== 'signed' && 
             $approval['status'] !== 'rejected' &&
             isset($approval['approval_heading_id']) && 
-            (int)$approval['approval_heading_id'] == 11) {
+            (int)$approval['approval_heading_id'] === 11) {
             $show_review_button = true;
         }
         break;
@@ -822,7 +822,8 @@ if ($show_tabs) { ?>
             </div>
             
 			   
-                 <div class="col-md-4" <?php if(isset($contract)){ ?> style="pointer-events: none;" <?php } ?>>
+                 
+            <div class="col-md-4" <?php if(isset($contract)){ ?> style="pointer-events: none;" <?php } ?>>
                 <div class="form-group select-placeholder f_client_id">
                     <?php
                       $selected = '';
@@ -847,6 +848,7 @@ if ($show_tabs) { ?>
                     ?>
                 </div>
             </div>
+
             <?php if($contract->type=='contracts'){ ?>
             <div class="col-md-4">
                <div class="form-group select-placeholder projects-wrapper<?php if((isset($contract) && !customer_has_projects($contract->client))){ echo ' hide';} ?>">
@@ -1983,8 +1985,7 @@ foreach ($contract_approvals as &$approval) {
 	  // get_templates_of_contract_ajax1();
      init_ajax_project_search_by_customer_id();
       get_contract_comments_overview();
-      var approvalType = '<?php echo ($contract->type == "contracts" ? "contract" : $contract->type); ?>';
-     init_approval_table_overview( approvalType, '<?php echo $contract->id; ?>');
+     init_approval_table_overview( '<?php echo $service; ?>', '<?php echo $contract->id; ?>');
      if ($('#contract-attachments-form').length > 0) {
         new Dropzone("#contract-attachments-form",appCreateDropzoneOptions({
            success: function (file) {
@@ -2419,7 +2420,7 @@ $('select[name="contract_type"]').change(function(){
    } 
    
    
-function init_approval_table_overview(rel_name,rel_id,type=''){   
+function init_approval_table_overview(rel_name,rel_id,type=''){ 
     var type = 'overview';
     
 				
