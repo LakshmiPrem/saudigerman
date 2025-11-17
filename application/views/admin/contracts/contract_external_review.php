@@ -68,7 +68,7 @@
 $(document).ready(function() {
     var type = 'overview';
     var rel_id = <?php echo (int)$contract->id; ?>;   
-    var rel_name = "<?php echo ($contract->type == 'contracts' ? 'contract' : 'po'); ?>";
+     var rel_name = "<?php echo ($contract->type == 'contracts' ? 'contract' : 'po'); ?>";
     
 				$('#approval_table_div').html('');
 				$.ajax({
