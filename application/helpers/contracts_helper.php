@@ -311,7 +311,7 @@ function get_contract_name_by_id($id)
 }
 
 
-function get_contract_value($type="")
+function get_contract_value($type="",$po_contract="contracts")
 {
     $CI = &get_instance();
 
@@ -324,7 +324,7 @@ $CI->db->where('trash', 1);
  elseif($type=='is_receivable'){
    $CI->db->where('is_receivable', 1); 
 }
-
+ $CI->db->where('type',$po_contract); 
 $total_contract_value = $CI->db->get(db_prefix() . 'contracts')->row()->contract_value;
 
        
@@ -337,7 +337,7 @@ if($total_contract_value==''){
 
   
 }
-function get_contract_approval_count()
+function get_contract_approval_count($type='contracts')
 {
 
 

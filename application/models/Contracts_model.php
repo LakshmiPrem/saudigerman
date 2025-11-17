@@ -1917,7 +1917,7 @@ function count_status_contracts($type='is_payable',$staffId = null)
 		
     // }
 
-    return total_rows(db_prefix() . 'contracts', array_merge([$type => 1], $where_own));
+    return total_rows(db_prefix() . 'contracts', array_merge([$type => 1,'type'=>'contracts'], $where_own));
 }
 
  public function get_contracts_types()

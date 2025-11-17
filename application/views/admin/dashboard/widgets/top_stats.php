@@ -480,7 +480,8 @@
                  if(!has_permission('contracts','','view')){
                     $_where = 'id IN (SELECT contractid FROM '.db_prefix().'contracts_assigned WHERE staff_id='.get_staff_user_id().')';
                   }
-                  $total_projectss = total_rows(db_prefix().'contracts',$_where);?>
+                  $where = ($_where == '' ? '' : $_where.' AND ').'type ="contracts"';
+                  $total_projectss = total_rows(db_prefix().'contracts',$where);?>
     <a href="<?php echo admin_url('contracts'); ?>" style="text-decoration:none; color:inherit;">
       <div class="summary-card">
         <span class="summary-label"><?php echo _l('total'); ?></span>
