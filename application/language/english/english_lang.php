@@ -7228,7 +7228,7 @@ $lang['unmark_as_signed']               = 'Unmark as signed';
 
 $lang['marked_as_signed']               = 'Marked as signed';
 
-$lang['contract_marked_as_signed_info'] = 'This contract is manually marked as signed.';
+$lang['contract_marked_as_signed_info'] = 'This is manually marked as signed.';
 
 $lang['save_and_send_later']            = 'Save and Send Later';
 
