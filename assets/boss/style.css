@@ -1,0 +1,311 @@
+h1,h2,h3,h4,h5,h6{
+	margin: 0;
+}
+
+body{
+	--colormain:#171717;
+	--brand-color:#fff;
+	--bgmain:#fafafb;
+	--font-work:'Poppins', sans-serif;';
+	--greyc: #d4d1d1;
+	--cchange: #ababab;
+	--bg2:#f1faffa8;
+}
+a,a::hover,a::focus,a::active,input,input::focus{
+	outline: none;
+	color: inherit;
+	text-decoration: none !important;
+}
+body{
+	background-color: var(--bg2);
+	color: var(--colormain);
+	font-family: var(--font-work);
+	/*    background-image: url(./images/cty.png);
+    /* background-size: cover; */
+    /*background-attachment: fixed;
+    background-repeat: no-repeat;
+    background-position: 11% 180%;*/*/
+}
+.navsection{
+	min-height: 60px;
+    /*border-bottom: 1px solid #a9a9a957;*/
+    /*box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.10);
+    -moz-box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.10);*/
+    /*background: black;*/
+    position: fixed;
+    z-index: 100;
+    width: 100%;
+    top: 0;
+}
+.full-layer{
+	padding: 8px 17px;
+}
+.menu-bar img{
+	width: 17px;
+	padding: 12px 0px;
+	cursor: pointer;
+}
+.pro-tittle{
+	color: var(--brand-color);
+	padding: 13px 4px;
+	font-weight: 400;
+	text-transform: uppercase;
+	text-align: center;
+    font-size: 14px;
+}
+.c-change{
+	color: var(--cchange);
+}
+.home-btn{
+	font-size: 17px !important;
+	float: right;
+	color: #d4d1d1;
+	padding: 12px 0;
+
+}
+.home{
+	color: var(--greyc);
+}
+.bt-box{
+	background-color: #fff;
+	margin:6px 7.5px;
+	text-align: center;
+	border-radius: 7px;
+	box-shadow: 0 0px 14px 0px rgba(36, 37, 38, 0.03);
+	-moz-box-shadow: 0 0px 14px 0px rgba(36, 37, 38, 0.03);
+}
+.us-logo img{
+	margin: 0 auto;
+    text-align: center;
+}
+.body-section{
+	margin: 6px 7.5px;
+	margin-top: 90px;
+}
+.us-logo{
+	    padding: 22px 0px;
+}
+.bt-box p {
+    font-size: 14px;
+    padding: 0px 7px 10px;
+}
+.slide-menu{
+	width: 84px;
+    background: #fafafb;
+    position: fixed;
+    top: 0;
+    left: -100px;
+    height: 100%;
+    z-index: 101;
+    border-right: 1px solid #a9a9a957;
+    padding: 15px;
+    transition: 0.3s;
+}
+.slide-menu .item{
+	margin: 15px auto;
+    text-align: center;
+    font-size: 22px;
+}
+.slide-menu.slided{
+	left: 0px;
+	transition: 0.3s;
+}
+.back-btn{
+	color: var(--cchange);
+}
+.home-brn{
+	font-size: 30px;
+}
+.std{
+    background: url(http://www.beveron.com/images/ghero4.jpg);
+    height: 100vh;
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: 55%;
+    background-attachment: fixed;
+    box-shadow: inset 0 0 0 2000px #1a67dbe0;
+    overflow: scroll;
+    padding: 60px 0px;
+}
+.quick{
+   height: 170px;
+    position: absolute;
+    width: 100%;
+    top: 15%;
+    background: white;
+
+}
+.ico-box-left{
+    height: 96px;
+    padding: 22px;
+    box-sizing: border-box;
+}
+.ico-box-left i{
+    font-size: 25px;
+}
+.ico-box-left p{
+    font-size: 13px;
+}
+.left-bottom{
+    background: #326abc;
+    border: none;
+    color: white;
+}
+.ico-box-right{
+    height: 192px;
+    padding: 57px;
+    box-sizing: border-box;
+    background-color: aqua;
+}
+.ico-box-right i{
+    font-size: 25px;
+}
+.ico-box-right p{
+    font-size: 13px;
+}
+.label{
+    color: white;
+}
+.home-search{
+    padding: 10px 30px 10px 10px;
+}
+.search-ico{
+    padding: 13px 20px;
+    font-size: 17px !important;
+}
+.form-control {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 1rem;
+    font-size: 14px;
+    line-height: 1.25;
+    color: #464a4c;
+    background-color: #fff;
+    background-image: none;
+    -webkit-background-clip: padding-box;
+    background-clip: padding-box;
+    border: none;
+    border-radius: 0.25rem;
+    -webkit-transition: border-color ease-in-out 0.15s, -webkit-box-shadow ease-in-out 0.15s;
+    transition: border-color ease-in-out 0.15s, -webkit-box-shadow ease-in-out 0.15s;
+    -o-transition: border-color ease-in-out 0.15s, box-shadow ease-in-out 0.15s;
+    transition: border-color ease-in-out 0.15s, box-shadow ease-in-out 0.15s;
+    transition: border-color ease-in-out 0.15s, box-shadow ease-in-out 0.15s, -webkit-box-shadow ease-in-out 0.15s;
+    box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0);
+    -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0);
+    margin: 0.5rem 0;
+}
+.all-slc{
+    background-color: white;
+}
+.drp{
+        padding: 0.5rem 0rem;
+    font-size: 14px;
+    border: none;
+    height: 100%;
+}
+.drp .form-box{
+      padding: 0.5rem 0rem;
+    font-size: 14px;
+    border: none;
+}
+.slt:after {
+    font-family: FontAwesome;
+    font-weight: 900;
+    content: "\f107";
+    color: #000000;
+    right: 10px;
+    top: 10px;
+    padding: 0 0 0px;
+    /* border-bottom: 1px solid #999; */
+    position: absolute;
+    pointer-events: none;
+    cursor: pointer;
+    font-size: 10px;
+}
+.slt select, .slt input[type="date"] {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    display: block;
+    outline: none;
+    width: 100%;
+    /* max-width: 320px; */
+    /* height: 50px; */
+    float: right;
+    margin: 0px 0px;
+    /* padding: 0px 13px; */
+    /* font-size: 15px; */
+    /* line-height: 1.75; */
+    color: #333;
+    background-color: #ffffff;
+    background-image: none;
+    /* border: 1px solid #cccccc; */
+    -ms-word-break: normal;
+    word-break: normal;
+}
+
+.body-section a:focus,.body-section a:target{
+    text-decoration: none !important;
+}
+.boxx{
+    background-color: #fff;
+}
+table {
+  width:100%;
+}
+table, th, td {
+  /*border: 1px solid black;*/
+  border-collapse: collapse;
+}
+th, td {
+  padding: 8px 8px;
+  text-align: left;
+}
+table#t01 tr:nth-child(even) {
+    background-color: #d5eaf6;
+}
+table#t01 tr:nth-child(odd) {
+ background-color: #eee;
+}
+table#t01 th {
+    background-color: #009efd;
+    color: white;
+}
+
+.boxx{
+    margin: 34px 0px 0px;
+    box-shadow: 0 0px 14px 0px rgba(36, 37, 38, 0.03);
+    padding: 3px;
+    border-radius: 1px;
+}
+.boxx label{
+    padding: 5px;
+}
+.callto{
+    padding: 2px 4px;
+    background: #22caa4;
+        color: white !important;
+    text-decoration-line: none !important;
+}
+.callto:focus{
+    color: white;
+    text-decoration: none;
+}
+.callto span{
+    /*padding-right: 4px;*/
+}
+a,a:target{
+    text-decoration: none;
+    color: inherit;
+}
+.hrg td,td{
+    text-align: center;
+}
+.addto{
+    padding: 2px 4px;
+    background: #e48f0a;
+    color: white !important;
+    text-decoration-line: none !important;
+    margin-left: 3px;
+}

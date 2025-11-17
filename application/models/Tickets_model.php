@@ -1,0 +1,2315 @@
+<?php
+
+defined('BASEPATH') or exit('No direct script access allowed');
+
+class Tickets_model extends App_Model
+{
+    private $piping = false;
+
+    public function __construct()
+    {
+        parent::__construct();
+    }
+
+    public function ticket_count($status = null)
+    {
+        $where = '';
+        if (!is_admin()) {
+            $this->load->model('departments_model');
+            $staff_deparments_ids = $this->departments_model->get_staff_departments(get_staff_user_id(), true);
+            if (get_option('staff_access_only_assigned_departments') == 1) {
+                $departments_ids = [];
+                if (count($staff_deparments_ids) == 0) {
+                    $departments = $this->departments_model->get();
+                    foreach ($departments as $department) {
+                        array_push($departments_ids, $department['departmentid']);
+                    }
+                } else {
+                    $departments_ids = $staff_deparments_ids;
+                }
+                if (count($departments_ids) > 0) {
+                    $where = 'AND department IN (SELECT departmentid FROM ' . db_prefix() . 'staff_departments WHERE departmentid IN (' . implode(',', $departments_ids) . ') AND staffid="' . get_staff_user_id() . '")';
+                }
+            }
+        }
+        $_where = '';
+        if (!is_null($status)) {
+            if ($where == '') {
+                $_where = 'status=' . $status;
+            } else {
+                $_where = 'status=' . $status . ' ' . $where;
+            }
+        }
+
+        return total_rows(db_prefix() . 'tickets', $_where);
+    }
+
+    public function insert_piped_ticket($data)
+    {
+        $data = hooks()->apply_filters('piped_ticket_data', $data);
+
+        $this->piping = true;
+        $attachments  = $data['attachments'];
+        $subject      = $data['subject'];
+        // Prevent insert ticket to database if mail delivery error happen
+        // This will stop createing a thousand tickets
+        $system_blocked_subjects = [
+            'Mail delivery failed',
+            'failure notice',
+            'Returned mail: see transcript for details',
+            'Undelivered Mail Returned to Sender',
+        ];
+
+        $subject_blocked = false;
+
+        foreach ($system_blocked_subjects as $sb) {
+            if (strpos('x' . $subject, $sb) !== false) {
+                $subject_blocked = true;
+
+                break;
+            }
+        }
+
+        if ($subject_blocked == true) {
+            return;
+        }
+
+        $message = $data['body'];
+        $name    = $data['fromname'];
+
+        $email   = $data['email'];
+        $to      = $data['to'];
+        $subject = $subject;
+        $message = $message;
+
+        $this->load->model('spam_filters_model');
+        $mailstatus = $this->spam_filters_model->check($email, $subject, $message, 'tickets');
+
+        // No spam found
+        if (!$mailstatus) {
+            $pos = strpos($subject, '[Ticket ID: ');
+            if ($pos === false) {
+            } else {
+                $tid = substr($subject, $pos + 12);
+                $tid = substr($tid, 0, strpos($tid, ']'));
+                $this->db->where('ticketid', $tid);
+                $data = $this->db->get(db_prefix() . 'tickets')->row();
+                $tid  = $data->ticketid;
+            }
+            $to            = trim($to);
+            $toemails      = explode(',', $to);
+            $department_id = false;
+            $userid        = false;
+            foreach ($toemails as $toemail) {
+                if (!$department_id) {
+                    $this->db->where('email', trim($toemail));
+                    $data = $this->db->get(db_prefix() . 'departments')->row();
+                    if ($data) {
+                        $department_id = $data->departmentid;
+                        $to            = $data->email;
+                    }
+                }
+            }
+            if (!$department_id) {
+                $mailstatus = 'Department Not Found';
+            } else {
+                if ($to == $email) {
+                    $mailstatus = 'Blocked Potential Email Loop';
+                } else {
+                    $message = trim($message);
+                    $this->db->where('active', 1);
+                    $this->db->where('email', $email);
+                    $result = $this->db->get(db_prefix() . 'staff')->row();
+                    if ($result) {
+                        if ($tid) {
+                            $data            = [];
+                            $data['message'] = $message;
+                            $data['status']  = get_option('default_ticket_reply_status');
+
+                            if (!$data['status']) {
+                                $data['status'] = 3; // Answered
+                            }
+
+                            if ($userid == false) {
+                                $data['name']  = $name;
+                                $data['email'] = $email;
+                            }
+
+                            $reply_id = $this->add_reply($data, $tid, $result->staffid, $attachments);
+                            if ($reply_id) {
+                                $mailstatus = 'Ticket Reply Imported Successfully';
+                            }
+                        } else {
+                            $mailstatus = 'Ticket ID Not Found';
+                        }
+                    } else {
+                        $this->db->where('email', $email);
+                        $result = $this->db->get(db_prefix() . 'contacts')->row();
+                        if ($result) {
+                            $userid    = $result->userid;
+                            $contactid = $result->id;
+                        }
+                        if ($userid == false && get_option('email_piping_only_registered') == '1') {
+                            $mailstatus = 'Unregistered Email Address';
+                        } else {
+                            $filterdate = date('Y-m-d H:i:s', strtotime('-15 minutes'));
+                            $query      = 'SELECT count(*) as total FROM ' . db_prefix() . 'tickets WHERE date > "' . $filterdate . '" AND (email="' . $this->db->escape($email) . '"';
+                            if ($userid) {
+                                $query .= ' OR userid=' . (int) $userid;
+                            }
+                            $query .= ')';
+                            $result = $this->db->query($query)->row();
+                            if (10 < $result->total) {
+                                $mailstatus = 'Exceeded Limit of 10 Tickets within 15 Minutes';
+                            } else {
+                                if (isset($tid)) {
+                                    $data            = [];
+                                    $data['message'] = $message;
+                                    $data['status']  = 1;
+                                    if ($userid == false) {
+                                        $data['name']  = $name;
+                                        $data['email'] = $email;
+                                    } else {
+                                        $data['userid']    = $userid;
+                                        $data['contactid'] = $contactid;
+
+                                        $this->db->where('userid', $userid);
+                                        $this->db->where('ticketid', $tid);
+                                        $t = $this->db->get(db_prefix() . 'tickets')->row();
+                                        if (!$t) {
+                                            $abuse = true;
+                                        }
+                                    }
+                                    if (!isset($abuse)) {
+                                        $reply_id = $this->add_reply($data, $tid, null, $attachments);
+                                        if ($reply_id) {
+                                            // Dont change this line
+                                            $mailstatus = 'Ticket Reply Imported Successfully';
+                                        }
+                                    } else {
+                                        $mailstatus = 'Ticket ID Not Found For User';
+                                    }
+                                } else {
+                                    if (get_option('email_piping_only_registered') == 1 && !$userid) {
+                                        $mailstatus = 'Blocked Ticket Opening from Unregistered User';
+                                    } else {
+                                        if (get_option('email_piping_only_replies') == '1') {
+                                            $mailstatus = 'Only Replies Allowed by Email';
+                                        } else {
+                                            $data               = [];
+                                            $data['department'] = $department_id;
+                                            $data['subject']    = $subject;
+                                            $data['message']    = $message;
+                                            $data['contactid']  = $contactid;
+                                            $data['priority']   = get_option('email_piping_default_priority');
+                                            if ($userid == false) {
+                                                $data['name']  = $name;
+                                                $data['email'] = $email;
+                                            } else {
+                                                $data['userid'] = $userid;
+                                            }
+                                            $tid = $this->add($data, null, $attachments);
+                                            // Dont change this line
+                                            $mailstatus = 'Ticket Imported Successfully';
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if ($mailstatus == '') {
+            $mailstatus = 'Ticket Import Failed';
+        }
+        $this->db->insert(db_prefix() . 'tickets_pipe_log', [
+            'date'     => date('Y-m-d H:i:s'),
+            'email_to' => $to,
+            'name'     => $name ?: 'Unknown',
+            'email'    => $email,
+            'subject'  => $subject,
+            'message'  => $message,
+            'status'   => $mailstatus,
+        ]);
+
+        return $mailstatus;
+    }
+
+    private function process_pipe_attachments($attachments, $ticket_id, $reply_id = '')
+    {
+        if (!empty($attachments)) {
+            $ticket_attachments = [];
+            $allowed_extensions = array_map(function ($ext) {
+                return strtolower(trim($ext));
+            }, explode(',', get_option('ticket_attachments_file_extensions')));
+
+            $path = FCPATH . 'uploads/ticket_attachments' . '/' . $ticket_id . '/';
+
+            foreach ($attachments as $attachment) {
+                $filename      = $attachment['filename'];
+                $filenameparts = explode('.', $filename);
+                $extension     = end($filenameparts);
+                $extension     = strtolower($extension);
+                if (in_array('.' . $extension, $allowed_extensions)) {
+                    $filename = implode(array_slice($filenameparts, 0, 0 - 1));
+                    $filename = trim(preg_replace('/[^a-zA-Z0-9-_ ]/', '', $filename));
+
+                    if (!$filename) {
+                        $filename = 'attachment';
+                    }
+
+                    if (!file_exists($path)) {
+                        mkdir($path, 0755);
+                        $fp = fopen($path . 'index.html', 'w');
+                        fclose($fp);
+                    }
+
+                    $filename = unique_filename($path, $filename . '.' . $extension);
+                    file_put_contents($path . $filename, $attachment['data']);
+
+                    array_push($ticket_attachments, [
+                        'file_name' => $filename,
+                        'filetype'  => get_mime_by_extension($filename),
+                    ]);
+                }
+            }
+
+            $this->insert_ticket_attachments_to_database($ticket_attachments, $ticket_id, $reply_id);
+        }
+    }
+
+    public function get($id = '', $where = [])
+    {
+        $this->db->select('*,' . db_prefix() . 'tickets.userid,' . db_prefix() . 'tickets.name as from_name,' . db_prefix() . 'tickets.email as ticket_email, ' . db_prefix() . 'departments.name as department_name, ' . db_prefix() . 'tickets_priorities.name as priority_name, statuscolor, ' . db_prefix() . 'tickets.admin, ' . db_prefix() . 'services.name as service_name, ' . db_prefix() . 'services.service_slug as service_slug, service, ' . db_prefix() . 'tickets_status.name as status_name,' . db_prefix() . 'tickets.ticketid, ' . db_prefix() . 'contacts.firstname as user_firstname, ' . db_prefix() . 'contacts.lastname as user_lastname,' . db_prefix() . 'staff.firstname as staff_firstname, ' . db_prefix() . 'staff.lastname as staff_lastname,lastreply,message,' . db_prefix() . 'tickets.status,subject,department,priority,' . db_prefix() . 'contacts.email,adminread,clientread,date,tblclients.company as company,tbloppositeparty.name as oppositeparty');
+        $this->db->join(db_prefix() . 'departments', db_prefix() . 'departments.departmentid = ' . db_prefix() . 'tickets.department', 'left');
+        $this->db->join(db_prefix() . 'tickets_status', db_prefix() . 'tickets_status.ticketstatusid = ' . db_prefix() . 'tickets.status', 'left');
+        $this->db->join(db_prefix() . 'services', db_prefix() . 'services.serviceid = ' . db_prefix() . 'tickets.service', 'left');
+        $this->db->join(db_prefix() . 'clients', db_prefix() . 'clients.userid = ' . db_prefix() . 'tickets.userid', 'left');
+		$this->db->join(db_prefix() . 'oppositeparty', db_prefix() . 'oppositeparty.id = ' . db_prefix() . 'tickets.opposteparty', 'left');
+        $this->db->join(db_prefix() . 'contacts', db_prefix() . 'contacts.id = ' . db_prefix() . 'tickets.contactid', 'left');
+        $this->db->join(db_prefix() . 'staff', db_prefix() . 'staff.staffid = ' . db_prefix() . 'tickets.admin', 'left');
+        $this->db->join(db_prefix() . 'tickets_priorities', db_prefix() . 'tickets_priorities.priorityid = ' . db_prefix() . 'tickets.priority', 'left');
+        $this->db->where($where);
+        if (is_numeric($id)) {
+            $this->db->where(db_prefix() . 'tickets.ticketid', $id);
+
+            return $this->db->get(db_prefix() . 'tickets')->row();
+        }
+        $this->db->order_by('ticketid', 'desc');
+
+        return $this->db->get(db_prefix() . 'tickets')->result_array();
+    }
+
+    /**
+     * Get ticket by id and all data
+     * @param  mixed  $id     ticket id
+     * @param  mixed $userid Optional - Tickets from USER ID
+     * @return object
+     */
+    public function get_ticket_by_id($id, $userid = '')
+    {
+        $this->db->select('*, ' . db_prefix() . 'tickets.userid, ' . db_prefix() . 'tickets.name as from_name, ' . db_prefix() . 'tickets.email as ticket_email, ' . db_prefix() . 'departments.name as department_name, ' . db_prefix() . 'tickets_priorities.name as priority_name, statuscolor, ' . db_prefix() . 'tickets.admin, ' . db_prefix() . 'services.name as service_name, service, ' . db_prefix() . 'services.service_slug as service_slug, ' . db_prefix() . 'tickets_status.name as status_name, ' . db_prefix() . 'tickets.ticketid, ' . db_prefix() . 'contacts.firstname as user_firstname, ' . db_prefix() . 'contacts.lastname as user_lastname, ' . db_prefix() . 'staff.firstname as staff_firstname, ' . db_prefix() . 'staff.lastname as staff_lastname, lastreply, message, ' . db_prefix() . 'tickets.status, subject, department, priority, ' . db_prefix() . 'contacts.email, adminread, clientread, date');
+        $this->db->from(db_prefix() . 'tickets');
+        $this->db->join(db_prefix() . 'departments', db_prefix() . 'departments.departmentid = ' . db_prefix() . 'tickets.department', 'left');
+        $this->db->join(db_prefix() . 'tickets_status', db_prefix() . 'tickets_status.ticketstatusid = ' . db_prefix() . 'tickets.status', 'left');
+        $this->db->join(db_prefix() . 'services', db_prefix() . 'services.serviceid = ' . db_prefix() . 'tickets.service', 'left');
+        $this->db->join(db_prefix() . 'clients', db_prefix() . 'clients.userid = ' . db_prefix() . 'tickets.userid', 'left');
+        $this->db->join(db_prefix() . 'staff', db_prefix() . 'staff.staffid = ' . db_prefix() . 'tickets.admin', 'left');
+        $this->db->join(db_prefix() . 'contacts', db_prefix() . 'contacts.id = ' . db_prefix() . 'tickets.contactid', 'left');
+        $this->db->join(db_prefix() . 'tickets_priorities', db_prefix() . 'tickets_priorities.priorityid = ' . db_prefix() . 'tickets.priority', 'left');
+
+        if (strlen($id) === 32) {
+            $this->db->where(db_prefix() . 'tickets.ticketkey', $id);
+        } else {
+            $this->db->where(db_prefix() . 'tickets.ticketid', $id);
+        }
+
+        if (is_numeric($userid)) {
+            $this->db->where(db_prefix() . 'tickets.userid', $userid);
+        }
+
+        $ticket = $this->db->get()->row();
+        if ($ticket) {
+            $ticket->submitter = $ticket->contactid != 0 ?
+            ($ticket->user_firstname . ' ' . $ticket->user_lastname) :
+            $ticket->from_name;
+
+            if (!($ticket->admin == null || $ticket->admin == 0)) {
+                $ticket->opened_by = $ticket->staff_firstname . ' ' . $ticket->staff_lastname;
+            }
+
+            $ticket->attachments = $this->get_ticket_attachments($ticket->ticketid);
+            $ticket->approvals = get_approvals($ticket->ticketid,'ticket');//$ticket->service_slug
+			 
+        }
+
+
+        return $ticket;
+    }
+ public function get_ticket_tasks($id)
+    {
+		 $this->db->select('*, ' . db_prefix() . 'task_assigned.staffid ');
+        $this->db->from(db_prefix() . 'tasks');
+        $this->db->join(db_prefix() . 'task_assigned', db_prefix() . 'tasks.id = ' . db_prefix() . 'task_assigned.taskid');
+        $this->db->where('rel_id', $id);
+        $this->db->where('rel_type', 'Ticket');
+
+        return $this->db->get()->result_array();
+    }
+    /**
+     * Insert ticket attachments to database
+     * @param  array  $attachments array of attachment
+     * @param  mixed  $ticketid
+     * @param  boolean $replyid If is from reply
+     */
+    public function insert_ticket_attachments_to_database($attachments, $ticketid, $replyid = false)
+    {
+        foreach ($attachments as $attachment) {
+            $attachment['ticketid']  = $ticketid;
+            $attachment['dateadded'] = date('Y-m-d H:i:s');
+			if ($replyid !== false && is_int($replyid)) {
+                $attachment['replyid'] = $replyid;
+            }
+            $this->db->insert(db_prefix() . 'ticket_attachments', $attachment);
+        }
+    }
+
+    /**
+     * Get ticket attachments from database
+     * @param  mixed $id      ticket id
+     * @param  mixed $replyid Optional - reply id if is from from reply
+     * @return array
+     */
+    public function get_ticket_attachments($id, $replyid = '')
+    {
+        $this->db->where('ticketid', $id);
+        $this->db->where('replyid', is_numeric($replyid) ? $replyid : null);
+
+        return $this->db->get(db_prefix() . 'ticket_attachments')->result_array();
+    }
+	 public function get_ticket_crattachments($id)
+    {
+        $this->db->where('ticketid', $id);
+        $this->db->where('document_name!=',null);
+
+        return $this->db->get(db_prefix() . 'ticket_attachments')->result_array();
+    }
+
+    /**
+     * Add new reply to ticket
+     * @param mixed $data  reply $_POST data
+     * @param mixed $id    ticket id
+     * @param boolean $admin staff id if is staff making reply
+     */
+    public function add_reply($data, $id, $admin = null, $pipe_attachments = false)
+    {
+        if (isset($data['assign_to_current_user'])) {
+            $assigned = get_staff_user_id();
+            unset($data['assign_to_current_user']);
+        }
+
+        $unsetters = [
+            'note_description',
+            'department',
+            'priority',
+            'subject',
+            'assigned',
+            'project_id',
+            'service',
+            'status_top',
+            'attachments',
+			'document_type',
+            'DataTables_Table_0_length',
+            'DataTables_Table_1_length',
+            'custom_fields',
+        ];
+
+        foreach ($unsetters as $unset) {
+            if (isset($data[$unset])) {
+                unset($data[$unset]);
+            }
+        }
+
+        if ($admin !== null) {
+            $data['admin'] = $admin;
+            $status        = 2;//$data['status'];
+        } else {
+            $status = 1;
+        }
+
+        if (isset($data['status'])) {
+            unset($data['status']);
+        }
+
+        $cc = '';
+        if (isset($data['cc'])) {
+            $cc = $data['cc'];
+            unset($data['cc']);
+        }
+
+        $data['ticketid'] = $id;
+        $data['date']     = date('Y-m-d H:i:s');
+        $data['message']  = trim($data['message']);
+
+        if ($this->piping == true) {
+            $data['message'] = preg_replace('/\v+/u', '<br>', $data['message']);
+        }
+
+        // admin can have html
+        if ($admin == null && hooks()->apply_filters('ticket_message_without_html_for_non_admin', true)) {
+            $data['message'] = _strip_tags($data['message']);
+            $data['message'] = nl2br_save_html($data['message']);
+        }
+
+        if (!isset($data['userid'])) {
+            $data['userid'] = 0;
+        }
+
+        $data['message'] = remove_emojis($data['message']);
+        $data            = hooks()->apply_filters('before_ticket_reply_add', $data, $id, $admin);
+
+        $this->db->insert(db_prefix() . 'ticket_replies', $data);
+
+        $insert_id = $this->db->insert_id();
+
+        if ($insert_id) {
+            /**
+             * When a ticket is in status "In progress" and the customer reply to the ticket
+             * it changes the status to "Open" which is not normal.
+             *
+             * The ticket should keep the status "In progress"
+             */
+            $this->db->select('status');
+            $this->db->where('ticketid', $id);
+            $old_ticket_status = $this->db->get(db_prefix() . 'tickets')->row()->status;
+
+            $newStatus = hooks()->apply_filters(
+                'ticket_reply_status',
+                ($old_ticket_status == 2 && $admin == null ? $old_ticket_status : $status),
+                ['ticket_id' => $id, 'reply_id' => $insert_id, 'admin' => $admin, 'old_status' => $old_ticket_status]
+            );
+
+            if (isset($assigned)) {
+                $this->db->where('ticketid', $id);
+                $this->db->update(db_prefix() . 'tickets', [
+                    'assigned' => $assigned,
+                ]);
+            }
+
+            if ($pipe_attachments != false) {
+                $this->process_pipe_attachments($pipe_attachments, $id, $insert_id);
+            } else {
+                $attachments = handle_ticket_attachments($id);
+                if ($attachments) {
+                    $this->tickets_model->insert_ticket_attachments_to_database($attachments, $id, $insert_id);
+                }
+            }
+
+            $_attachments = $this->get_ticket_attachments($id, $insert_id);
+
+            log_activity('New Ticket Reply [ReplyID: ' . $insert_id . ']');
+
+            $this->db->where('ticketid', $id);
+            $this->db->update(db_prefix() . 'tickets', [
+                'lastreply'  => date('Y-m-d H:i:s'),
+                'status'     => $newStatus,
+                'adminread'  => 0,
+                'clientread' => 0,
+            ]);
+
+            if ($old_ticket_status != $newStatus) {
+                hooks()->do_action('after_ticket_status_changed', [
+                    'id'     => $id,
+                    'status' => $newStatus,
+                ]);
+            }
+
+            $ticket    = $this->get_ticket_by_id($id);
+            $userid    = $ticket->userid;
+            $isContact = false;
+            if ($ticket->userid != 0 && $ticket->contactid != 0) {
+                $email     = $this->clients_model->get_contact($ticket->contactid)->email;
+                $isContact = true;
+            } else {
+                $email = $ticket->ticket_email;
+            }
+            if ($admin == null) {
+                $this->load->model('departments_model');
+                $this->load->model('staff_model');
+                $staff = $this->staff_model->get('', ['active' => 1]);
+
+                $notifiedUsers                           = [];
+                $notificationForStaffMemberOnTicketReply = get_option('receive_notification_on_new_ticket_replies') == 1;
+
+                foreach ($staff as $staff_key => $member) {
+                    if (
+                        get_option('access_tickets_to_none_staff_members') == 0
+                        && !is_staff_member($member['staffid'])
+                    ) {
+                        continue;
+                    }
+
+                    $staff_departments = $this->departments_model->get_staff_departments($member['staffid'], true);
+
+                    if (in_array($ticket->department, $staff_departments)) {
+                        send_mail_template('ticket_new_reply_to_staff', $ticket, $member, $_attachments);
+
+                        if ($notificationForStaffMemberOnTicketReply) {
+                            $notified = add_notification([
+                                'description'     => 'not_new_ticket_reply',
+                                'touserid'        => $member['staffid'],
+                                'fromcompany'     => 1,
+                                'fromuserid'      => 0,
+                                'link'            => 'tickets/ticket/' . $id,
+                                'additional_data' => serialize([
+                                    $ticket->subject,
+                                ]),
+                            ]);
+                            if ($notified) {
+                                array_push($notifiedUsers, $member['staffid']);
+                            }
+                        }
+                    }
+                }
+                pusher_trigger_notification($notifiedUsers);
+            } else {
+                $sendEmail = true;
+                if ($isContact && total_rows(db_prefix() . 'contacts', ['ticket_emails' => 1, 'id' => $ticket->contactid]) == 0) {
+                    $sendEmail = false;
+                }
+                if ($sendEmail) {
+                    send_mail_template('ticket_new_reply_to_customer', $ticket, $email, $_attachments, $cc);
+                }
+            }
+            hooks()->do_action('after_ticket_reply_added', [
+                'data'    => $data,
+                'id'      => $id,
+                'admin'   => $admin,
+                'replyid' => $insert_id,
+            ]);
+
+            return $insert_id;
+        }
+
+        return false;
+    }
+
+    /**
+     *  Delete ticket reply
+     * @param   mixed $ticket_id    ticket id
+     * @param   mixed $reply_id     reply id
+     * @return  boolean
+     */
+    public function delete_ticket_reply($ticket_id, $reply_id)
+    {
+        hooks()->do_action('before_delete_ticket_reply', ['ticket_id' => $ticket_id, 'reply_id' => $reply_id]);
+
+        $this->db->where('id', $reply_id);
+        $this->db->delete(db_prefix() . 'ticket_replies');
+
+        if ($this->db->affected_rows() > 0) {
+            // Get the reply attachments by passing the reply_id to get_ticket_attachments method
+            $attachments = $this->get_ticket_attachments($ticket_id, $reply_id);
+            if (count($attachments) > 0) {
+                foreach ($attachments as $attachment) {
+                    $this->delete_ticket_attachment($attachment['id']);
+                }
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Remove ticket attachment by id
+     * @param  mixed $id attachment id
+     * @return boolean
+     */
+    public function delete_ticket_attachment($id)
+    {
+        $deleted = false;
+        $this->db->where('id', $id);
+        $attachment = $this->db->get(db_prefix() . 'ticket_attachments')->row();
+        if ($attachment) {
+            if (unlink(get_upload_path_by_type('ticket') . $attachment->ticketid . '/' . $attachment->file_name)) {
+                $this->db->where('id', $attachment->id);
+                $this->db->delete(db_prefix() . 'ticket_attachments');
+                $deleted = true;
+            }
+            // Check if no attachments left, so we can delete the folder also
+            $other_attachments = list_files(get_upload_path_by_type('ticket') . $attachment->ticketid);
+            if (count($other_attachments) == 0) {
+                delete_dir(get_upload_path_by_type('ticket') . $attachment->ticketid);
+            }
+        }
+
+        return $deleted;
+    }
+
+    /**
+     * Get ticket attachment by id
+     * @param  mixed $id attachment id
+     * @return mixed
+     */
+    public function get_ticket_attachment($id)
+    {
+        $this->db->where('id', $id);
+
+        return $this->db->get(db_prefix() . 'ticket_attachments')->row();
+    }
+
+    /**
+     * This functions is used when staff open client ticket
+     * @param  mixed $userid client id
+     * @param  mixed $id     ticketid
+     * @return array
+     */
+    public function get_user_other_tickets($userid, $id)
+    {
+        $this->db->select(db_prefix() . 'departments.name as department_name, ' . db_prefix() . 'services.name as service_name,' . db_prefix() . 'tickets_status.name as status_name,' . db_prefix() . 'staff.firstname as staff_firstname, ' . db_prefix() . 'clients.lastname as staff_lastname,ticketid,subject,firstname,lastname,lastreply');
+        $this->db->from(db_prefix() . 'tickets');
+        $this->db->join(db_prefix() . 'departments', db_prefix() . 'departments.departmentid = ' . db_prefix() . 'tickets.department', 'left');
+        $this->db->join(db_prefix() . 'tickets_status', db_prefix() . 'tickets_status.ticketstatusid = ' . db_prefix() . 'tickets.status', 'left');
+        $this->db->join(db_prefix() . 'services', db_prefix() . 'services.serviceid = ' . db_prefix() . 'tickets.service', 'left');
+        $this->db->join(db_prefix() . 'clients', db_prefix() . 'clients.userid = ' . db_prefix() . 'tickets.userid', 'left');
+        $this->db->join(db_prefix() . 'staff', db_prefix() . 'staff.staffid = ' . db_prefix() . 'tickets.admin', 'left');
+        $this->db->where(db_prefix() . 'tickets.userid', $userid);
+        $this->db->where(db_prefix() . 'tickets.ticketid !=', $id);
+        $tickets = $this->db->get()->result_array();
+        $i       = 0;
+        foreach ($tickets as $ticket) {
+            $tickets[$i]['submitter'] = $ticket['firstname'] . ' ' . $ticket['lastname'];
+            unset($ticket['firstname']);
+            unset($ticket['lastname']);
+            $i++;
+        }
+
+        return $tickets;
+    }
+
+    /**
+     * Get all ticket replies
+     * @param  mixed  $id     ticketid
+     * @param  mixed $userid specific client id
+     * @return array
+     */
+    public function get_ticket_replies($id)
+    {
+        $ticket_replies_order = get_option('ticket_replies_order');
+        // backward compatibility for the action hook
+        $ticket_replies_order = hooks()->apply_filters('ticket_replies_order', $ticket_replies_order);
+
+        $this->db->select(db_prefix() . 'ticket_replies.id,' . db_prefix() . 'ticket_replies.name as from_name,' . db_prefix() . 'ticket_replies.email as reply_email, ' . db_prefix() . 'ticket_replies.admin, ' . db_prefix() . 'ticket_replies.userid,' . db_prefix() . 'staff.firstname as staff_firstname, ' . db_prefix() . 'staff.lastname as staff_lastname,' . db_prefix() . 'contacts.firstname as user_firstname,' . db_prefix() . 'contacts.lastname as user_lastname,message,date,contactid');
+        $this->db->from(db_prefix() . 'ticket_replies');
+        $this->db->join(db_prefix() . 'clients', db_prefix() . 'clients.userid = ' . db_prefix() . 'ticket_replies.userid', 'left');
+        $this->db->join(db_prefix() . 'staff', db_prefix() . 'staff.staffid = ' . db_prefix() . 'ticket_replies.admin', 'left');
+        $this->db->join(db_prefix() . 'contacts', db_prefix() . 'contacts.id = ' . db_prefix() . 'ticket_replies.contactid', 'left');
+        $this->db->where('ticketid', $id);
+        $this->db->order_by('date', $ticket_replies_order);
+        $replies = $this->db->get()->result_array();
+        $i       = 0;
+        foreach ($replies as $reply) {
+            if ($reply['admin'] !== null || $reply['admin'] != 0) {
+                // staff reply
+                $replies[$i]['submitter'] = $reply['staff_firstname'] . ' ' . $reply['staff_lastname'];
+            } else {
+                if ($reply['contactid'] != 0) {
+                    $replies[$i]['submitter'] = $reply['user_firstname'] . ' ' . $reply['user_lastname'];
+                } else {
+                    $replies[$i]['submitter'] = $reply['from_name'];
+                }
+            }
+            unset($replies[$i]['staff_firstname']);
+            unset($replies[$i]['staff_lastname']);
+            unset($replies[$i]['user_firstname']);
+            unset($replies[$i]['user_lastname']);
+            $replies[$i]['attachments'] = $this->get_ticket_attachments($id, $reply['id']);
+            $i++;
+        }
+
+        return $replies;
+    }
+
+    /**
+     * Add new ticket to database
+     * @param mixed $data  ticket $_POST data
+     * @param mixed $admin If admin adding the ticket passed staff id
+     */
+    public function add($data, $admin = null, $pipe_attachments = false)
+    {
+        if ($admin !== null) {
+            $data['admin'] = $admin;
+            unset($data['ticket_client_search']);
+        }
+
+        if (isset($data['assigned']) && $data['assigned'] == '') {
+            $data['assigned'] = 0;
+        }
+
+        if (isset($data['project_id']) && $data['project_id'] == '') {
+            $data['project_id'] = 0;
+        }
+
+        if ($admin == null) {
+            if (isset($data['email'])) {
+                $data['userid']    = 0;
+                $data['contactid'] = 0;
+            } else {
+                // Opened from customer portal otherwise is passed from pipe or admin area
+                if (!isset($data['userid']) && !isset($data['contactid'])) {
+                    $data['userid']    = get_client_user_id();
+                    $data['contactid'] = get_contact_user_id();
+                }
+            }
+            $data['status'] = 1;
+        }
+
+        if (isset($data['custom_fields'])) {
+            $custom_fields = $data['custom_fields'];
+            unset($data['custom_fields']);
+        }
+
+        // CC is only from admin area
+        $cc = '';
+        if (isset($data['cc'])) {
+            $cc = $data['cc'];
+            unset($data['cc']);
+        }
+		$reqno='';
+		 if (isset($data['service'])) {
+            $serv =$this->tickets_model->get_service($data['service']);
+			 $scode=$serv->shortname;
+			 $userid=get_user_id_by_contact_id($data['contactid']);
+			  $this->load->model('clients_model');
+			 $client=$this->clients_model->get($userid);
+			 $clientcode=$client->client_no;
+			 $count=get_option('ticket_nextrequest_no');//get_latest_ticket();//$this->tickets_model->ticket_count();
+			  $_file_number = str_pad($count, get_option('number_padding_prefixes'), '0', STR_PAD_LEFT);
+			 $reqno=$clientcode.' '.$scode.$_file_number;
+			 $data['request_no']=$reqno;
+         }
+
+        $data['date']      = date('Y-m-d H:i:s');
+        $data['ticketkey'] = app_generate_hash();
+        $data['status']    = 1;
+        $data['message']   = trim($data['message']);
+        $data['subject']   = trim($data['subject']);
+        if ($this->piping == true) {
+            $data['message'] = preg_replace('/\v+/u', '<br>', $data['message']);
+        }
+
+        // Admin can have html
+        if ($admin == null && hooks()->apply_filters('ticket_message_without_html_for_non_admin', true)) {
+            $data['message'] = _strip_tags($data['message']);
+            $data['subject'] = _strip_tags($data['subject']);
+            $data['message'] = nl2br_save_html($data['message']);
+        }
+
+        if (!isset($data['userid'])) {
+            $data['userid'] = 0;
+        }
+        if (isset($data['priority']) && $data['priority'] == '' || !isset($data['priority'])) {
+            $data['priority'] = 0;
+        }
+		 if (!empty($data['newdeposit_dt'])) {
+            $data['newdeposit_dt'] = to_sql_date($data['newdeposit_dt']);
+        } else {
+            unset($data['newdeposit_dt']);
+        }
+		 if (!empty($data['doe'])) {
+            $data['doe'] = to_sql_date($data['doe']);
+        } else {
+            unset($data['doe']);
+        }
+		if (!empty($data['cheque_dt'])) {
+            $data['cheque_dt'] = to_sql_date($data['cheque_dt']);
+        } else {
+            unset($data['cheque_dt']);
+        }
+		 if (!empty($data['bus_startdate'])) {
+            $data['bus_startdate'] = to_sql_date($data['bus_startdate']);
+        } else {
+            unset($data['bus_startdate']);
+        }
+
+        $tags = '';
+        if (isset($data['tags'])) {
+            $tags = $data['tags'];
+            unset($data['tags']);
+        }
+		 $doctypes = '';
+        if (isset($data['document_type'])) {
+            $doctypes = $data['document_type'];
+            unset($data['document_type']);
+			 unset($data['document_name']);
+			 unset($data['document_number']);
+			 unset($data['nationality']);
+			 unset($data['expiry_date']);
+			 unset($data['remark']);
+        }
+		 $cvdoctypes = '';
+		 if (isset($data['cvdocument_type'])) {
+            $cvdoctypes = $data['cvdocument_type'];
+            unset($data['cvdocument_type']);
+			 unset($data['cvdocument_name']);
+		 }
+	 if (isset($data['crattachments'])) {
+            $crattachments = $data['crattachments'];
+            unset($data['crattachments']);
+			}
+		$oppositeparty = '';
+        if (isset($data['opposite_party'])) {
+            $oppositeparty = $data['opposite_party'];
+            unset($data['opposite_party']);
+        }
+        if (!empty($data['deadline'])) {
+            $data['deadline'] = to_sql_date($data['deadline']);
+        } else {
+            unset($data['deadline']);
+        }
+
+        $data['message'] = remove_emojis($data['message']);
+        $data            = hooks()->apply_filters('before_ticket_created', $data, $admin);
+
+        $this->db->insert(db_prefix() . 'tickets', $data);
+        $ticketid = $this->db->insert_id();
+        if ($ticketid) {
+			$this->db->where('name', 'ticket_nextrequest_no');
+            $this->db->set('value', 'value+1', false);
+            $this->db->update('tbloptions');
+            handle_tags_save($tags, $ticketid, 'ticket');
+            $data_reassigned['assigned_by']=get_staff_user_id();
+            $data_reassigned['current_department']=$data['department'];
+            $data_reassigned['assign_department']=$data['department'];
+            $data_reassigned['assigned']=$data['assigned'];
+            $data_reassigned['status']=2;
+            $data_reassigned['ticket_id']=$ticketid;
+            $this->add_reassign($data_reassigned);
+			
+            if (isset($custom_fields)) {
+                handle_custom_fields_post($ticketid, $custom_fields);
+            }
+
+            if (isset($data['assigned']) && $data['assigned'] != 0) {
+                if ($data['assigned'] != get_staff_user_id()) {
+                    $notified = add_notification([
+                        'description'     => 'not_ticket_assigned_to_you',
+                        'touserid'        => $data['assigned'],
+                        'fromcompany'     => 1,
+                        'fromuserid'      => 0,
+                        'link'            => 'tickets/ticket/' . $ticketid,
+                        'additional_data' => serialize([
+                            $data['subject'],
+                        ]),
+                    ]);
+
+                    if ($notified) {
+                        pusher_trigger_notification([$data['assigned']]);
+                    }
+
+                    send_mail_template('ticket_assigned_to_staff', get_staff($data['assigned'])->email, $data['assigned'], $ticketid, $data['userid'], $data['contactid']);
+                }
+            }
+            if ($pipe_attachments != false) {
+                $this->process_pipe_attachments($pipe_attachments, $ticketid);
+            } else {
+                $attachments = handle_ticket_attachments($ticketid);
+                if ($attachments) {
+                    $this->insert_ticket_attachments_to_database($attachments, $ticketid);
+                }
+            }
+
+            $_attachments = $this->get_ticket_attachments($ticketid);
+
+
+            $isContact = false;
+            if (isset($data['userid']) && $data['userid'] != false) {
+                $email     = $this->clients_model->get_contact($data['contactid'])->email;
+                $isContact = true;
+            } else {
+                $email = $data['email'];
+            }
+
+            $template = 'ticket_created_to_customer';
+            if ($admin == null) {
+                $template = 'ticket_autoresponse';
+
+                $this->load->model('departments_model');
+                $this->load->model('staff_model');
+                $staff = $this->staff_model->get('', ['active' => 1]);
+
+                $notifiedUsers                              = [];
+                $notificationForStaffMemberOnTicketCreation = get_option('receive_notification_on_new_ticket') == 1;
+
+                foreach ($staff as $member) {
+                    if (
+                        get_option('access_tickets_to_none_staff_members') == 0
+                        && !is_staff_member($member['staffid'])
+                    ) {
+                        continue;
+                    }
+                    $staff_departments = $this->departments_model->get_staff_departments($member['staffid'], true);
+
+                    if (in_array($data['department'], $staff_departments)) {
+                        send_mail_template('ticket_created_to_staff', $ticketid, $data['userid'], $data['contactid'], $member, $_attachments);
+
+                        if ($notificationForStaffMemberOnTicketCreation) {
+                            $notified = add_notification([
+                                'description'     => 'not_new_ticket_created',
+                                'touserid'        => $member['staffid'],
+                                'fromcompany'     => 1,
+                                'fromuserid'      => 0,
+                                'link'            => 'tickets/ticket/' . $ticketid,
+                                'additional_data' => serialize([
+                                    $data['subject'],
+                                ]),
+                            ]);
+                            if ($notified) {
+                                array_push($notifiedUsers, $member['staffid']);
+                            }
+                        }
+                    }
+                }
+                pusher_trigger_notification($notifiedUsers);
+            }
+
+            $sendEmail = true;
+
+            if ($isContact && total_rows(db_prefix() . 'contacts', ['ticket_emails' => 1, 'id' => $data['contactid']]) == 0) {
+                $sendEmail = false;
+            }
+
+            if ($sendEmail) {
+                $ticket = $this->get_ticket_by_id($ticketid);
+                // $admin == null ? [] : $_attachments - Admin opened ticket from admin area add the attachments to the email
+				
+				  $legals        = explode(';', $cc);
+                  foreach ($legals as  $member1) {
+                    if ($member1 != '') {
+                        send_mail_template($template, $ticket, $email, $admin == null ? [] : $_attachments, $member1);
+                    }
+                }
+                
+             
+               
+            }
+
+            hooks()->do_action('ticket_created', $ticketid);
+            log_activity('New Ticket Created [ID: ' . $ticketid . ']');
+
+            return $ticketid;
+        }
+
+        return false;
+    }
+
+    /**
+     * Get latest 5 client tickets
+     * @param  integer $limit  Optional limit tickets
+     * @param  mixed $userid client id
+     * @return array
+     */
+    public function get_client_latests_ticket($limit = 5, $userid = '')
+    {
+        $this->db->select(db_prefix() . 'tickets.userid, ticketstatusid, statuscolor, ' . db_prefix() . 'tickets_status.name as status_name,' . db_prefix() . 'tickets.ticketid, subject, date');
+        $this->db->from(db_prefix() . 'tickets');
+        $this->db->join(db_prefix() . 'tickets_status', db_prefix() . 'tickets_status.ticketstatusid = ' . db_prefix() . 'tickets.status', 'left');
+        if (is_numeric($userid)) {
+            $this->db->where(db_prefix() . 'tickets.userid', $userid);
+        } else {
+            $this->db->where(db_prefix() . 'tickets.userid', get_client_user_id());
+        }
+        $this->db->limit($limit);
+
+        return $this->db->get()->result_array();
+    }
+
+    /**
+     * Delete ticket from database and all connections
+     * @param  mixed $ticketid ticketid
+     * @return boolean
+     */
+    public function delete($ticketid)
+    {
+        $affectedRows = 0;
+        hooks()->do_action('before_ticket_deleted', $ticketid);
+		$service_slug =  $this->tickets_model->get_ticket_by_id($ticketid)->service_slug;
+        // final delete ticket
+        $this->db->where('ticketid', $ticketid);
+        $this->db->delete(db_prefix() . 'tickets');
+        if ($this->db->affected_rows() > 0) {
+            $affectedRows++;
+        }
+        if ($this->db->affected_rows() > 0) {
+            $affectedRows++;
+            $this->db->where('ticketid', $ticketid);
+            $attachments = $this->db->get(db_prefix() . 'ticket_attachments')->result_array();
+            if (count($attachments) > 0) {
+                if (is_dir(get_upload_path_by_type('ticket') . $ticketid)) {
+                    if (delete_dir(get_upload_path_by_type('ticket') . $ticketid)) {
+                        foreach ($attachments as $attachment) {
+                            $this->db->where('id', $attachment['id']);
+                            $this->db->delete(db_prefix() . 'ticket_attachments');
+                            if ($this->db->affected_rows() > 0) {
+                                $affectedRows++;
+                            }
+                        }
+                    }
+                }
+            }
+
+            $this->db->where('relid', $ticketid);
+            $this->db->where('fieldto', 'tickets');
+            $this->db->delete(db_prefix() . 'customfieldsvalues');
+
+            // Delete replies
+            $this->db->where('ticketid', $ticketid);
+            $this->db->delete(db_prefix() . 'ticket_replies');
+
+            $this->db->where('rel_id', $ticketid);
+            $this->db->where('rel_type', 'ticket');
+            $this->db->delete(db_prefix() . 'notes');
+
+            $this->db->where('rel_id', $ticketid);
+            $this->db->where('rel_type', 'ticket');
+            $this->db->delete(db_prefix() . 'taggables');
+
+            $this->db->where('rel_type', 'ticket');
+            $this->db->where('rel_id', $ticketid);
+            $this->db->delete(db_prefix() . 'reminders');
+
+            // Get related tasks
+            $this->db->where('rel_type', 'ticket');
+            $this->db->where('rel_id', $ticketid);
+            $tasks = $this->db->get(db_prefix() . 'tasks')->result_array();
+            foreach ($tasks as $task) {
+                $this->tasks_model->delete_task($task['id']);
+            }
+			 // Get related civilcase
+          //  $this->db->where('rel_type', 'ticket');
+            $this->db->where('ticketid', $ticketid);
+            $cases = $this->db->get(db_prefix() . 'tickets_civil');
+            if ($cases->num_rows()>0) {
+               $this->db->where('ticketid', $ticketid);
+            $this->db->delete(db_prefix() . 'tickets_civil');
+            }
+				 // Get related policecase
+          //  $this->db->where('rel_type', 'ticket');
+            $this->db->where('ticketid', $ticketid);
+            $cases1 = $this->db->get(db_prefix() . 'tickets_police');
+            if ($cases1->num_rows()>0) {
+               $this->db->where('ticketid', $ticketid);
+            $this->db->delete(db_prefix() . 'tickets_police');
+            }
+			// Get related credit
+          //  $this->db->where('rel_type', 'ticket');
+            $this->db->where('ticketid', $ticketid);
+            $cases1 = $this->db->get(db_prefix() . 'tickets_credit');
+            if ($cases1->num_rows()>0) {
+               $this->db->where('ticketid', $ticketid);
+            $this->db->delete(db_prefix() . 'tickets_credit');
+            }
+			// Get related branch credit
+          //  $this->db->where('rel_type', 'ticket');
+            $this->db->where('ticketid', $ticketid);
+            $cases1 = $this->db->get(db_prefix() . 'tickets_branchcredit');
+            if ($cases1->num_rows()>0) {
+               $this->db->where('ticketid', $ticketid);
+            $this->db->delete(db_prefix() . 'tickets_branchcredit');
+            }
+			// Get related approvals
+            $this->db->where('rel_type', 'ticket');
+            $this->db->where('rel_id', $ticketid);
+            $cases1 = $this->db->get(db_prefix() . 'approvals');
+            if ($cases1->num_rows()>0) {
+                $this->db->where('rel_type','ticket');
+            	$this->db->where('rel_id', $ticketid);
+				$this->db->delete(db_prefix() . 'approvals');
+            }
+        }
+        if ($affectedRows > 0) {
+            log_activity('Ticket Deleted [ID: ' . $ticketid . ']');
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Update ticket data / admin use
+     * @param  mixed $data ticket $_POST data
+     * @return boolean
+     */
+    public function update_single_ticket_settings($data)
+    {
+        $affectedRows = 0;
+        $data         = hooks()->apply_filters('before_ticket_settings_updated', $data);
+
+        $ticketBeforeUpdate = $this->get_ticket_by_id($data['ticketid']);
+		$cc = '';
+        if (isset($data['cc'])) {
+            $cc = $data['cc'];
+            unset($data['cc']);
+        }
+        if (isset($data['custom_fields']) && count($data['custom_fields']) > 0) {
+            if (handle_custom_fields_post($data['ticketid'], $data['custom_fields'])) {
+                $affectedRows++;
+            }
+            unset($data['custom_fields']);
+        }
+
+        $tags = '';
+        if (isset($data['tags'])) {
+            $tags = $data['tags'];
+            unset($data['tags']);
+        }
+
+        if (handle_tags_save($tags, $data['ticketid'], 'ticket')) {
+            $affectedRows++;
+        }
+
+        if (isset($data['priority']) && $data['priority'] == '' || !isset($data['priority'])) {
+            $data['priority'] = 0;
+        }
+
+        if ($data['assigned'] == '') {
+            $data['assigned'] = 0;
+        }
+
+        if (isset($data['project_id']) && $data['project_id'] == '') {
+            $data['project_id'] = 0;
+        }
+
+        if (isset($data['contactid']) && $data['contactid'] != '') {
+            $data['name']  = null;
+            $data['email'] = null;
+        }
+		 if (!empty($data['newdeposit_dt'])) {
+            $data['newdeposit_dt'] = to_sql_date($data['newdeposit_dt']);
+        } else {
+            unset($data['newdeposit_dt']);
+        }
+		 if (!empty($data['doe'])) {
+            $data['doe'] = to_sql_date($data['doe']);
+        } else {
+            unset($data['doe']);
+        }
+		if (!empty($data['cheque_dt'])) {
+            $data['cheque_dt'] = to_sql_date($data['cheque_dt']);
+        } else {
+            unset($data['cheque_dt']);
+        }
+		 if (!empty($data['bus_startdate'])) {
+            $data['bus_startdate'] = to_sql_date($data['bus_startdate']);
+        } else {
+            unset($data['bus_startdate']);
+        }
+
+        if (isset ($data['deadline'])   && !empty($data['deadline'])) {
+            $data['deadline'] = to_sql_date($data['deadline']);
+        } else {
+            unset($data['deadline']);
+        }
+
+
+        $this->db->where('ticketid', $data['ticketid']);
+        $this->db->update(db_prefix() . 'tickets', $data);
+        if ($this->db->affected_rows() > 0) {
+            hooks()->do_action(
+                'ticket_settings_updated',
+                [
+                    'ticket_id'       => $data['ticketid'],
+                    'original_ticket' => $ticketBeforeUpdate,
+                    'data'            => $data,
+                ]
+            );
+            $affectedRows++;
+        }
+
+        $sendAssignedEmail = false;
+
+        $current_assigned = $ticketBeforeUpdate->assigned;
+        if ($current_assigned != 0) {
+            if ($current_assigned != $data['assigned']) {
+                if ($data['assigned'] != 0 && $data['assigned'] != get_staff_user_id()) {
+                    $sendAssignedEmail = true;
+                    $notified          = add_notification([
+                        'description'     => 'not_ticket_reassigned_to_you',
+                        'touserid'        => $data['assigned'],
+                        'fromcompany'     => 1,
+                        'fromuserid'      => 0,
+                        'link'            => 'tickets/ticket/' . $data['ticketid'],
+                        'additional_data' => serialize([
+                            $data['subject'],
+                        ]),
+                    ]);
+                    if ($notified) {
+                        pusher_trigger_notification([$data['assigned']]);
+                    }
+                }
+            }
+        } else {
+            if ($data['assigned'] != 0 && $data['assigned'] != get_staff_user_id()) {
+                $sendAssignedEmail = true;
+                $notified          = add_notification([
+                    'description'     => 'not_ticket_assigned_to_you',
+                    'touserid'        => $data['assigned'],
+                    'fromcompany'     => 1,
+                    'fromuserid'      => 0,
+                    'link'            => 'tickets/ticket/' . $data['ticketid'],
+                    'additional_data' => serialize([
+                        $data['subject'],
+                    ]),
+                ]);
+
+                if ($notified) {
+                    pusher_trigger_notification([$data['assigned']]);
+                }
+            }
+        }
+        if ($sendAssignedEmail === true) {
+            $this->db->where('staffid', $data['assigned']);
+            $assignedEmail = $this->db->get(db_prefix() . 'staff')->row()->email;
+
+            send_mail_template('ticket_assigned_to_staff', $assignedEmail, $data['assigned'], $data['ticketid'], $data['userid'], $data['contactid']);
+        }
+        if ($affectedRows > 0) {
+            log_activity('Ticket Updated [ID: ' . $data['ticketid'] . ']');
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * C<ha></ha>nge ticket status
+     * @param  mixed $id     ticketid
+     * @param  mixed $status status id
+     * @return array
+     */
+    public function change_ticket_status($id, $status)
+    {
+        $this->db->where('ticketid', $id);
+        $this->db->update(db_prefix() . 'tickets', [
+            'status' => $status,
+        ]);
+        $alert   = 'warning';
+        $message = _l('ticket_status_changed_fail');
+        if ($this->db->affected_rows() > 0) {
+            $alert   = 'success';
+            $message = _l('ticket_status_changed_successfully');
+            hooks()->do_action('after_ticket_status_changed', [
+                'id'     => $id,
+                'status' => $status,
+            ]);
+        }
+
+        return [
+            'alert'   => $alert,
+            'message' => $message,
+        ];
+    }
+
+    // Priorities
+
+    /**
+     * Get ticket priority by id
+     * @param  mixed $id priority id
+     * @return mixed     if id passed return object else array
+     */
+    public function get_priority($id = '')
+    {
+        if (is_numeric($id)) {
+            $this->db->where('priorityid', $id);
+
+            return $this->db->get(db_prefix() . 'tickets_priorities')->row();
+        }
+
+        return $this->db->get(db_prefix() . 'tickets_priorities')->result_array();
+    }
+
+    /**
+     * Add new ticket priority
+     * @param array $data ticket priority data
+     */
+    public function add_priority($data)
+    {
+        $this->db->insert(db_prefix() . 'tickets_priorities', $data);
+        $insert_id = $this->db->insert_id();
+        if ($insert_id) {
+            log_activity('New Ticket Priority Added [ID: ' . $insert_id . ', Name: ' . $data['name'] . ']');
+        }
+
+        return $insert_id;
+    }
+
+    /**
+     * Update ticket priority
+     * @param  array $data ticket priority $_POST data
+     * @param  mixed $id   ticket priority id
+     * @return boolean
+     */
+    public function update_priority($data, $id)
+    {
+        $this->db->where('priorityid', $id);
+        $this->db->update(db_prefix() . 'tickets_priorities', $data);
+        if ($this->db->affected_rows() > 0) {
+            log_activity('Ticket Priority Updated [ID: ' . $id . ' Name: ' . $data['name'] . ']');
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Delete ticket priorit
+     * @param  mixed $id ticket priority id
+     * @return mixed
+     */
+    public function delete_priority($id)
+    {
+        $current = $this->get($id);
+        // Check if the priority id is used in tickets table
+        if (is_reference_in_table('priority', db_prefix() . 'tickets', $id)) {
+            return [
+                'referenced' => true,
+            ];
+        }
+        $this->db->where('priorityid', $id);
+        $this->db->delete(db_prefix() . 'tickets_priorities');
+        if ($this->db->affected_rows() > 0) {
+            if (get_option('email_piping_default_priority') == $id) {
+                update_option('email_piping_default_priority', '');
+            }
+            log_activity('Ticket Priority Deleted [ID: ' . $id . ']');
+
+            return true;
+        }
+
+        return false;
+    }
+
+    // Predefined replies
+
+    /**
+     * Get predefined reply  by id
+     * @param  mixed $id predefined reply id
+     * @return mixed if id passed return object else array
+     */
+    public function get_predefined_reply($id = '')
+    {
+        if (is_numeric($id)) {
+            $this->db->where('id', $id);
+
+            return $this->db->get(db_prefix() . 'tickets_predefined_replies')->row();
+        }
+
+        return $this->db->get(db_prefix() . 'tickets_predefined_replies')->result_array();
+    }
+
+    /**
+     * Add new predefined reply
+     * @param array $data predefined reply $_POST data
+     */
+    public function add_predefined_reply($data)
+    {
+        $this->db->insert(db_prefix() . 'tickets_predefined_replies', $data);
+        $insertid = $this->db->insert_id();
+        log_activity('New Predefined Reply Added [ID: ' . $insertid . ', ' . $data['name'] . ']');
+
+        return $insertid;
+    }
+
+    /**
+     * Update predefined reply
+     * @param  array $data predefined $_POST data
+     * @param  mixed $id   predefined reply id
+     * @return boolean
+     */
+    public function update_predefined_reply($data, $id)
+    {
+        $this->db->where('id', $id);
+        $this->db->update(db_prefix() . 'tickets_predefined_replies', $data);
+        if ($this->db->affected_rows() > 0) {
+            log_activity('Predefined Reply Updated [ID: ' . $id . ', ' . $data['name'] . ']');
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Delete predefined reply
+     * @param  mixed $id predefined reply id
+     * @return boolean
+     */
+    public function delete_predefined_reply($id)
+    {
+        $this->db->where('id', $id);
+        $this->db->delete(db_prefix() . 'tickets_predefined_replies');
+        if ($this->db->affected_rows() > 0) {
+            log_activity('Predefined Reply Deleted [' . $id . ']');
+
+            return true;
+        }
+
+        return false;
+    }
+
+    // Ticket statuses
+
+    /**
+     * Get ticket status by id
+     * @param  mixed $id status id
+     * @return mixed     if id passed return object else array
+     */
+    public function get_ticket_status($id = '',$where=[])
+    {
+        if (is_numeric($id)) {
+            $this->db->where('ticketstatusid', $id);
+
+            return $this->db->get(db_prefix() . 'tickets_status')->row();
+        }
+		if ((is_array($where) && count($where) > 0) || (is_string($where) && $where != '')) {
+            $this->db->where($where);
+        }
+        $this->db->order_by('statusorder', 'asc');
+
+        return $this->db->get(db_prefix() . 'tickets_status')->result_array();
+    }
+
+    /**
+     * Add new ticket status
+     * @param array ticket status $_POST data
+     * @return mixed
+     */
+    public function add_ticket_status($data)
+    {
+        $this->db->insert(db_prefix() . 'tickets_status', $data);
+        $insert_id = $this->db->insert_id();
+        if ($insert_id) {
+            log_activity('New Ticket Status Added [ID: ' . $insert_id . ', ' . $data['name'] . ']');
+
+            return $insert_id;
+        }
+
+        return false;
+    }
+
+    /**
+     * Update ticket status
+     * @param  array $data ticket status $_POST data
+     * @param  mixed $id   ticket status id
+     * @return boolean
+     */
+    public function update_ticket_status($data, $id)
+    {
+        $this->db->where('ticketstatusid', $id);
+        $this->db->update(db_prefix() . 'tickets_status', $data);
+        if ($this->db->affected_rows() > 0) {
+            log_activity('Ticket Status Updated [ID: ' . $id . ' Name: ' . $data['name'] . ']');
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Delete ticket status
+     * @param  mixed $id ticket status id
+     * @return mixed
+     */
+    public function delete_ticket_status($id)
+    {
+        $current = $this->get_ticket_status($id);
+        // Default statuses cant be deleted
+        if ($current->isdefault == 1) {
+            return [
+                'default' => true,
+            ];
+        // Not default check if if used in table
+        } elseif (is_reference_in_table('status', db_prefix() . 'tickets', $id)) {
+            return [
+                'referenced' => true,
+            ];
+        }
+        $this->db->where('ticketstatusid', $id);
+        $this->db->delete(db_prefix() . 'tickets_status');
+        if ($this->db->affected_rows() > 0) {
+            log_activity('Ticket Status Deleted [ID: ' . $id . ']');
+
+            return true;
+        }
+
+        return false;
+    }
+
+    // Ticket services
+    public function get_service($id = '',$where=[])
+    {
+        if (is_numeric($id)) {
+            $this->db->where('serviceid', $id);
+
+            return $this->db->get(db_prefix() . 'services')->row();
+        }
+		if ((is_array($where) && count($where) > 0) || (is_string($where) && $where != '')) {
+            $this->db->where($where);
+        }
+        $this->db->order_by('name', 'asc');
+
+        return $this->db->get(db_prefix() . 'services')->result_array();
+    }
+
+    public function add_service($data)
+    {
+        $this->db->insert(db_prefix() . 'services', $data);
+        $insert_id = $this->db->insert_id();
+        if ($insert_id) {
+            log_activity('New Ticket Service Added [ID: ' . $insert_id . '.' . $data['name'] . ']');
+        }
+
+        return $insert_id;
+    }
+
+    public function update_service($data, $id)
+    {
+        $this->db->where('serviceid', $id);
+        $this->db->update(db_prefix() . 'services', $data);
+        if ($this->db->affected_rows() > 0) {
+            log_activity('Ticket Service Updated [ID: ' . $id . ' Name: ' . $data['name'] . ']');
+
+            return true;
+        }
+
+        return false;
+    }
+
+    public function delete_service($id)
+    {
+        if (is_reference_in_table('service', db_prefix() . 'tickets', $id)) {
+            return [
+                'referenced' => true,
+            ];
+        }
+        $this->db->where('serviceid', $id);
+        $this->db->delete(db_prefix() . 'services');
+        if ($this->db->affected_rows() > 0) {
+            log_activity('Ticket Service Deleted [ID: ' . $id . ']');
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array
+     * Used in home dashboard page
+     * Displays weekly ticket openings statistics (chart)
+     */
+    public function get_weekly_tickets_opening_statistics()
+    {
+        $departments_ids = [];
+        if (!is_admin()) {
+            if (get_option('staff_access_only_assigned_departments') == 1) {
+                $this->load->model('departments_model');
+                $staff_deparments_ids = $this->departments_model->get_staff_departments(get_staff_user_id(), true);
+                $departments_ids      = [];
+                if (count($staff_deparments_ids) == 0) {
+                    $departments = $this->departments_model->get();
+                    foreach ($departments as $department) {
+                        array_push($departments_ids, $department['departmentid']);
+                    }
+                } else {
+                    $departments_ids = $staff_deparments_ids;
+                }
+            }
+        }
+
+        $chart = [
+            'labels'   => get_weekdays(),
+            'datasets' => [
+                [
+                    'label'           => _l('home_weekend_ticket_opening_statistics'),
+                    'backgroundColor' => 'rgba(197, 61, 169, 0.5)',
+                    'borderColor'     => '#c53da9',
+                    'borderWidth'     => 1,
+                    'tension'         => false,
+                    'data'            => [
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                    ],
+                ],
+            ],
+        ];
+
+        $monday = new DateTime(date('Y-m-d', strtotime('monday this week')));
+        $sunday = new DateTime(date('Y-m-d', strtotime('sunday this week')));
+
+        $thisWeekDays = get_weekdays_between_dates($monday, $sunday);
+
+        $byDepartments = count($departments_ids) > 0;
+        if (isset($thisWeekDays[1])) {
+            $i = 0;
+            foreach ($thisWeekDays[1] as $weekDate) {
+                $this->db->like('DATE(date)', $weekDate, 'after');
+                if ($byDepartments) {
+                    $this->db->where('department IN (SELECT departmentid FROM ' . db_prefix() . 'staff_departments WHERE departmentid IN (' . implode(',', $departments_ids) . ') AND staffid="' . get_staff_user_id() . '")');
+                }
+                $chart['datasets'][0]['data'][$i] = $this->db->count_all_results(db_prefix() . 'tickets');
+
+                $i++;
+            }
+        }
+
+        return $chart;
+    }
+
+    public function get_tickets_assignes_disctinct()
+    {
+        return $this->db->query('SELECT DISTINCT(assigned) as assigned FROM ' . db_prefix() . 'tickets WHERE assigned != 0')->result_array();
+    }
+	public function get_tickets_branch_disctinct()
+    {
+        return $this->db->query('SELECT DISTINCT(userid) as userid FROM ' . db_prefix() . 'tickets WHERE userid!= 0')->result_array();
+    }
+	public function get_tickets_services_disctinct()
+    {
+        return $this->db->query('SELECT DISTINCT(service) as serviceid FROM ' . db_prefix() . 'tickets WHERE service!= 0')->result_array();
+    }
+
+    /**
+     * Check for previous tickets opened by this email/contact and link to the contact
+     * @param  string $email      email to check for
+     * @param  mixed $contact_id the contact id to transfer the tickets
+     * @return boolean
+     */
+    public function transfer_email_tickets_to_contact($email, $contact_id)
+    {
+        // Some users don't want to fill the email
+        if (empty($email)) {
+            return false;
+        }
+
+        $customer_id = get_user_id_by_contact_id($contact_id);
+
+        $this->db->where('userid', 0)
+            ->where('contactid', 0)
+            ->where('admin IS NULL')
+            ->where('email', $email);
+
+        $this->db->update(db_prefix() . 'tickets', [
+            'email'     => null,
+            'name'      => null,
+            'userid'    => $customer_id,
+            'contactid' => $contact_id,
+        ]);
+
+        $this->db->where('userid', 0)
+            ->where('contactid', 0)
+            ->where('admin IS NULL')
+            ->where('email', $email);
+
+        $this->db->update(db_prefix() . 'ticket_replies', [
+            'email'     => null,
+            'name'      => null,
+            'userid'    => $customer_id,
+            'contactid' => $contact_id,
+        ]);
+
+        return true;
+    }
+
+    public function update_single_ticket_approvals($data){
+         $this->load->model('todo_model');
+		 $last_approval_id = $this->db->select("*")->limit(1)->order_by('id','DESC')->get('tblapprovals')->row(); 
+        if($last_approval_id){
+          $insert['approval_key'] = $last_approval_id->id + 1;
+        }else{
+          $insert['approval_key'] =  1;        
+        }
+        $insert['approval_name'] = $data['approval_name'];
+        $insert['rel_type']      =  $data['rel_type'];
+        $insert['rel_id']      =  $data['rel_id'];
+        $insert['approval_status'] = 2;
+		$insert['addedfrom'] = get_staff_user_id();
+        $insert['dateadded'] = date('Y-m-d H:i:s');
+		$headings = $data['approval_heading_id'];
+        $approval_assigned = $data['approval_assigned'];
+        $inserted = false;
+		$notifiedUsers=[];
+		$appcount=0;
+       	foreach($headings as $key=>$heading){
+            $insert['approval_heading_id'] = $heading;
+          	$insert['staffid']  = $approval_assigned[$key];
+            $insert['approval_type'] = $heading;
+			                    
+             $this->db->insert('tblapprovals',$insert);
+			 $appid = $this->db->insert_id();
+			$appcount++;
+		}
+		 $first_approval = $this->db->select("*")->limit(1)->order_by('id','ASC')->where('rel_id',$data['rel_id'])->where('rel_type',$data['rel_type'])->get('tblapprovals')->row(); 
+		 $this->db->where('ticketid',$data['rel_id']);
+        $this->db->update(db_prefix() . 'tickets', [
+            'status' => 2,
+			'approvers_count'=>$appcount,
+			'last_approving'=>$first_approval->id,
+		]);
+	   
+					$todo['_staffid']=  $first_approval->staffid;
+					$todo['approval_id']= $first_approval->id;
+					$todo['rel_type']='ticket';
+					$todo['description']=_l('legal_request_approval').' For Ticket Id: <a href="tickets/ticket/' . $first_approval->rel_id.'?confirmation=approval">' .$first_approval->rel_id.'</a>';
+					$todo['dateadded']=date('Y-m-d H:i:s');
+					$this->todo_model->add($todo);
+		
+					$ticket = $this->get_ticket_by_id($data['rel_id']);
+                	$notified = add_notification([
+                    'description'     => 'legal_request_approval',
+                    'touserid'        => $first_approval->staffid,
+                    'fromcompany'     => 1,
+                    'fromuserid'      => 0,
+                    'link'            => 'tickets/ticket/' . $data['rel_id'].'?confirmation=approval',
+                    'additional_data' => serialize([
+                        $ticket->subject,
+					]),
+                	]);
+					if ($notified) {
+						array_push($notifiedUsers, $approval_assigned[$key]);
+					
+                	} 
+		$this->db->where('id',$first_approval->id);
+        $this->db->update(db_prefix() . 'approvals', [
+            'approve_expectdt' => date('Y-m-d'),
+		]);
+        pusher_trigger_notification($notifiedUsers);
+        return true;
+    }
+
+    public function change_approval_status($id, $status)
+    {
+		$this->load->model('todo_model');
+        $this->db->where('id', $id);
+        $this->db->update(db_prefix() . 'approvals', [
+            'approval_status' => $status,
+			'dateapproved'=>date('Y-m-d H:i:s'),
+        ]);
+		 if ($this->db->affected_rows() > 0) {
+		 $this->db->where('approval_id', $id);
+		 $this->db->where('rel_type', 'ticket');
+        $this->db->where('staffid', get_staff_user_id());
+        $date = date('Y-m-d H:i:s');
+        $this->db->update(db_prefix().'todos', [
+            'finished'     => 1,
+            'datefinished' => $date,
+        ]);
+		 }
+       
+		  $ticketno = $this->db->get_where('tblapprovals',array('id'=>$id))->row()->rel_id;
+        $alert   = 'warning';
+        $message = _l('ticket_status_changed_fail');
+        if ($this->db->affected_rows() > 0) {
+            if($status == 3){
+                $nextid = $id+1;
+                $notifiedUsers=[];
+                $next_approval = $this->db->get_where('tblapprovals',array('id'=>$nextid,'rel_id'=>$ticketno));
+				
+                if($next_approval->num_rows() > 0){
+					 $next_approval_data = $next_approval->row();
+                    $ticket = $this->get_ticket_by_id($next_approval_data->rel_id);
+					
+					$todo['_staffid']=  $next_approval_data->staffid;
+					$todo['approval_id']= $next_approval_data->id;
+					$todo['rel_type']='ticket';
+					$todo['description']=_l('legal_request_approval').' For Ticket Id: <a href="tickets/ticket/' . $next_approval_data->rel_id.'?confirmation=approval">' .$next_approval_data->rel_id.'</a>';
+					$todo['dateadded']=date('Y-m-d H:i:s');
+					$this->todo_model->add($todo);
+				
+                   
+                    $notified = add_notification([
+                        'description'     => 'legal_request_approval',
+                        'touserid'        => $next_approval_data->staffid,
+                        'fromcompany'     => 1,
+                        'fromuserid'      => 0,
+                        'link'            => 'tickets/ticket/' . $next_approval_data->rel_id.'?confirmation=approval',
+                        'additional_data' => serialize([
+                            $ticket->subject,
+                        ]),
+                    ]);
+                    if ($notified) {
+                        array_push($notifiedUsers, $next_approval_data->staffid);
+                    }
+				$this->db->where('id',$next_approval_data->id);
+				$this->db->update(db_prefix() . 'approvals', [
+            	'approve_expectdt' => date('Y-m-d'),
+				]);	
+			   	pusher_trigger_notification($notifiedUsers);
+			    send_mail_template('ticket_status_changed_to_staff', get_staff($next_approval_data->staffid)->email, $next_approval_data->staffid, $next_approval_data->rel_id);// $data['userid'], $data['contactid']
+					 $this->db->where('ticketid',$ticketno);
+					$this->db->update(db_prefix() . 'tickets', [
+					'last_approving' => $next_approval_data->id,
+				
+					]);
+                } else{
+					 $this->db->where('ticketid',$ticketno);
+					$this->db->update(db_prefix() . 'tickets', [
+					'status' => $status,
+					'dateapproved'	=>date('Y-m-d H:i:s')
+					]);
+					$ticket = $this->get_ticket_by_id($ticketno);
+                    $appmembers =  $this->db->get_where('tblapprovals',array('rel_id'=>$ticketno,'approval_status'=>3))->result_array();
+					foreach($appmembers as $appmember){
+						 if(($ticket->service_slug=='credit1o')||($ticket->service_slug=='credit1')||($ticket->service_slug=='credit')||($ticket->service_slug=='credito')){
+						send_mail_template('ticket_mdstatus_to_approver',$ticket, get_staff($appmember['staffid'])->email,true, $appmember['staffid']);
+						 }else{
+							send_mail_template('ticket_mdstatus_to_approver',$ticket, get_staff($appmember['staffid'])->email,false, $appmember['staffid']); 
+						 }
+					} 
+					
+				}
+
+               
+            }
+               elseif($status ==5){
+				   $nextid = $id+1;              
+				   $notifiedUsers=[];
+				    $next_approval = $this->db->get_where('tblapprovals',array('id'=>$nextid,'rel_id'=>$ticketno));
+				
+                if($next_approval->num_rows() > 0){
+                $last_approval = $this->db->get_where('tblapprovals',array('id'=>$id,'rel_id'=>$ticketno));
+                if($last_approval->num_rows() > 0){
+                    $last_approval_data = $last_approval->row();
+					  $ticket = $this->get_ticket_by_id($last_approval_data->rel_id);
+                    $appmembers =  $this->db->get_where('tblapprovals',array('rel_id'=>$last_approval_data->rel_id,'approval_status'=>3))->result_array();
+					
+					foreach($appmembers as $appmember){
+                    $notified = add_notification([
+                        'description'     => 'legal_request_rejected',
+                        'touserid'        => $appmember['staffid'],
+                        'fromcompany'     => 1,
+                        'fromuserid'      => 0,
+                        'link'            => 'tickets/ticket/' . $last_approval_data->rel_id.'?confirmation=approval',
+                        'additional_data' => serialize([
+                            $ticket->subject,
+                        ]),
+                    ]);
+                    if ($notified) {
+                        array_push($notifiedUsers, $last_approval_data->staffid);
+                    }  
+						send_mail_template('ticket_status_rejected_to_staff', get_staff($appmember['staffid'])->email, $appmember['staffid'], $last_approval_data->rel_id);
+                } 
+
+                 pusher_trigger_notification($notifiedUsers);
+					 $this->db->where('ticketid',$ticketno);
+					$this->db->update(db_prefix() . 'tickets', [
+					'status' => $status,
+					'dateapproved'	=>date('Y-m-d H:i:s')
+					]);
+				
+            }} else{
+				   
+					 $this->db->where('ticketid',$ticketno);
+					$this->db->update(db_prefix() . 'tickets', [
+						'status' => $status,
+						'dateapproved'	=>date('Y-m-d H:i:s'),
+					]);
+					$ticket = $this->get_ticket_by_id($ticketno);
+                    $appmembers =  $this->db->get_where('tblapprovals',array('rel_id'=>$ticketno))->result_array();
+					foreach($appmembers as $appmember){
+						 if(($ticket->service_slug=='credit1o')||($ticket->service_slug=='credit1')||($ticket->service_slug=='credit')||($ticket->service_slug=='credito')){
+						send_mail_template('ticket_mdstatus_to_approver',$ticket, get_staff($appmember['staffid'])->email,true, $appmember['staffid']);
+						 }else{
+							send_mail_template('ticket_mdstatus_to_approver',$ticket, get_staff($appmember['staffid'])->email,false, $appmember['staffid']); 
+						 }
+					}
+				}
+				
+				 }
+			      else{
+                $nextid = $id+1;
+                $notifiedUsers=[];
+                $next_approval = $this->db->get_where('tblapprovals',array('id'=>$nextid,'rel_id'=>$ticketno));
+                if($next_approval->num_rows() ==0){
+                	 $this->db->where('ticketid',$ticketno);
+        $this->db->update(db_prefix() . 'tickets', [
+            'status' => $status,
+			'dateapproved'	=>date('Y-m-d H:i:s')
+        ]);
+					$ticket = $this->get_ticket_by_id($ticketno);
+                    $appmembers =  $this->db->get_where('tblapprovals',array('rel_id'=>$ticketno))->result_array();
+					foreach($appmembers as $appmember){
+						 if(($ticket->service_slug=='credit1o')||($ticket->service_slug=='credit1')||($ticket->service_slug=='credit')||($ticket->service_slug=='credito')){
+						send_mail_template('ticket_mdstatus_to_approver',$ticket, get_staff($appmember['staffid'])->email,true, $appmember['staffid']);
+						 }else{
+							send_mail_template('ticket_mdstatus_to_approver',$ticket, get_staff($appmember['staffid'])->email,false, $appmember['staffid']); 
+						 }
+					}
+				}else{
+					if($status==6 || $status==4){
+						 $this->db->where('ticketid',$ticketno);
+					$this->db->update(db_prefix() . 'tickets', [
+					'status' => $status,
+					'dateapproved'	=>date('Y-m-d H:i:s')
+					]);
+					}
+					
+				}
+
+               
+            }
+            
+            $alert   = 'success';
+            $message = _l('approval_status_changed_successfully');
+			
+        }
+        return [
+            'alert'   => $alert,
+            'message' => $message,
+			
+        ];
+    }
+
+	public function change_approval_staff($id, $staff)
+    {
+		 $this->load->model('todo_model');
+        $this->db->where('id', $id);
+        $this->db->update(db_prefix() . 'approvals', [
+            'staffid' => $staff,
+        ]);
+        //$alert   = 'warning';
+        //$message = '';
+        if ($this->db->affected_rows() > 0) {
+			 $ticketid = $this->db->get_where('tblapprovals',array('id'=>$id))->row()->rel_id;
+			$todo['_staffid']=$staff;
+			$todo['approval_id']=$id;
+			$todo['rel_type']='ticket';
+			$todo['description']=_l('legal_request_approval').' For Ticket Id: <a href="tickets/ticket/' . $ticketid.'?confirmation=approval">' .$ticketid.'</a>';
+			$todo['dateadded']=date('Y-m-d H:i:s');
+			$this->todo_model->add($todo);
+            $alert   = 'success';
+            $message = _l('added_successfully');
+        }
+        return [
+            'alert'   => $alert,
+            'message' => $message,
+        ];
+    }
+
+    public function change_approval_remarks($id, $remarks)
+    {
+        $this->db->where('id', $id);
+        $this->db->update(db_prefix() . 'approvals', [
+            'approval_remarks' => $remarks,
+        ]);
+        //$alert   = 'warning';
+        //$message = '';
+        if ($this->db->affected_rows() > 0) {
+            $alert   = 'success';
+            $message = _l('added_successfully');
+        }
+        return [
+            'alert'   => $alert,
+            'message' => $message,
+        ];
+    }
+	 public function change_approval_credits($id, $cperiod)
+    {
+        $this->db->where('id', $id);
+        $this->db->update(db_prefix() . 'approvals', [
+            'credit_period' => $cperiod,
+			
+        ]);
+        //$alert   = 'warning';
+        //$message = '';
+        if ($this->db->affected_rows() > 0) {
+            $ticketid = $this->db->get_where('tblapprovals',array('id'=>$id))->row()->rel_id;
+             log_activity('Ticket Approval Credit Period Changed [TicketID: ' . $ticketid . ']');
+            $alert   = 'success';
+            $message = _l('added_successfully');
+        }
+        return [
+            'alert'   => $alert,
+            'message' => $message,
+        ];
+    }
+	public function change_approval_creditamounts($id, $camount)
+    {
+        $this->db->where('id', $id);
+        $this->db->update(db_prefix() . 'approvals', [
+          'credit_amount' =>$camount,
+        ]);
+        //$alert   = 'warning';
+        //$message = '';
+        if ($this->db->affected_rows() > 0) {
+             $ticketid = $this->db->get_where('tblapprovals',array('id'=>$id))->row()->rel_id;
+             log_activity('Ticket Approval Credit Amount Changed [TicketID: ' . $ticketid . ']');
+            $alert   = 'success';
+            $message = _l('added_successfully');
+        }
+        return [
+            'alert'   => $alert,
+            'message' => $message,
+        ];
+    }
+		  
+	public function add_civilrequest($data){
+        $data['datecreated']   = date('Y-m-d H:i:s');
+      //  $data['addedfrom']     = get_staff_user_id();
+		
+	  	  $data['case_date']=isset($data['case_date'])?to_sql_date($data['case_date']):'';
+        $this->db->insert('tbltickets_civil', $data);
+        $inserted_id = $this->db->insert_id();
+        if ($inserted_id) { 
+			
+			return true;
+        }
+        return false;
+    }
+  
+    public function update_civilrequest($data,$id){
+        $affectedRows = 0;
+		
+	  	  $data['case_date']=isset($data['case_date'])?to_sql_date($data['case_date']):'';
+        $this->db->where('id', $id);
+        $this->db->update('tbltickets_civil', $data);
+        if ($this->db->affected_rows() > 0) {
+			
+            return true;
+        }
+        return false;
+    }
+	public function add_legalapproval($data){
+        $data['dateadded']   = date('Y-m-d H:i:s');
+       $data['addedfrom']     = get_staff_user_id();
+		$this->db->insert('tbltickets_credit', $data);
+        $inserted_id = $this->db->insert_id();
+        if ($inserted_id) { 
+			
+			return true;
+        }
+        return false;
+    }
+  
+    public function update_legalapproval($data,$id){
+        $affectedRows = 0;
+		$this->db->where('id', $id);
+        $this->db->update('tbltickets_credit', $data);
+        if ($this->db->affected_rows() > 0) {
+			
+            return true;
+        }
+        return false;
+    }
+	public function get_legalapproval_details_by_ticket_id($id)
+    { $result='';
+        $this->db->where('ticketid', $id);
+       $query = $this->db->get('tbltickets_credit');
+		  if($query->num_rows() > 0){
+        $result=$query->row();
+		  }
+	 return $result;
+    }
+public function get_civil_details_by_ticket_id($id)
+    { $result='';
+        $this->db->where('ticketid', $id);
+       $query = $this->db->get('tbltickets_civil');
+		  if($query->num_rows() > 0){
+        $result=$query->row();
+		  }
+	 return $result;
+    }
+   
+	public function add_policerequest($data){
+        $data['datecreated']   = date('Y-m-d H:i:s');
+      //  $data['addedfrom']     = get_staff_user_id();  
+		
+		
+		//  $data['due_date']=isset($data['due_date'])?to_sql_date($data['due_date']):'';
+		//  $data['dateon_cheque']=isset($data['dateon_cheque'])?to_sql_date($data['dateon_cheque']):'';
+		//  $data['pdc_dateon_cheque']=isset($data['pdc_dateon_cheque'])?to_sql_date($data['pdc_dateon_cheque']):'';
+		//  $data['quarantee_date']=isset($data['quarantee_date'])?to_sql_date($data['quarantee_date']):'';
+		//  $data['passport_expdt']=isset($data['passport_expdt'])?to_sql_date($data['passport_expdt']):'';
+		//  $data['emirates_expdt']=isset($data['emirates_expdt'])?to_sql_date($data['emirates_expdt']):'';
+	  	  $data['case_date']=isset($data['case_date'])?to_sql_date($data['case_date']):'';
+        $this->db->insert('tbltickets_police', $data);
+        $inserted_id = $this->db->insert_id();
+        if ($inserted_id) { 
+			
+			return true;
+        }
+        return false;
+    }
+  
+    public function update_policerequest($data,$id){
+        $affectedRows = 0;
+		
+		 //  $data['due_date']=isset($data['due_date'])?to_sql_date($data['due_date']):'';
+		 // $data['dateon_cheque']=isset($data['dateon_cheque'])?to_sql_date($data['dateon_cheque']):'';
+		//  $data['pdc_dateon_cheque']=isset($data['pdc_dateon_cheque'])?to_sql_date($data['pdc_dateon_cheque']):'';
+		//  $data['quarantee_date']=isset($data['quarantee_date'])?to_sql_date($data['quarantee_date']):'';
+		//  $data['passport_expdt']=isset($data['passport_expdt'])?to_sql_date($data['passport_expdt']):'';
+		//  $data['emirates_expdt']=isset($data['emirates_expdt'])?to_sql_date($data['emirates_expdt']):'';
+	  	  $data['case_date']=isset($data['case_date'])?to_sql_date($data['case_date']):'';
+        $this->db->where('id', $id);
+	
+        $this->db->update('tbltickets_police', $data);
+        if ($this->db->affected_rows() > 0) {
+			
+            return true;
+        }
+        return false;
+    }
+	public function get_police_details_by_ticket_id($id)
+    { $result='';
+        $this->db->where('ticketid', $id);
+       $query = $this->db->get('tbltickets_police');
+		  if($query->num_rows() > 0){
+        $result=$query->row();
+		  }
+	 return $result;
+    }
+	
+	   /**
+     * Select unique contracts years
+     * @return array
+     */
+    public function get_tickets_years()
+    {
+        return $this->db->query('SELECT DISTINCT(YEAR(date)) as year FROM ' . db_prefix() . 'tickets')->result_array();
+    }
+	public function add_branchapproval($data){
+        $data['dateadded']   = date('Y-m-d H:i:s');
+       $data['addedfrom']     = get_staff_user_id();
+		$this->db->insert('tbltickets_branchcredit', $data);
+        $inserted_id = $this->db->insert_id();
+        if ($inserted_id) { 
+			
+			return true;
+        }
+        return false;
+    }
+  
+    public function update_branchapproval($data,$id){
+        $affectedRows = 0;
+		$this->db->where('id', $id);
+        $this->db->update('tbltickets_branchcredit', $data);
+        if ($this->db->affected_rows() > 0) {
+			
+            return true;
+        }
+        return false;
+    }
+	public function get_branchapproval_details_by_ticket_id($id)
+    { $result='';
+        $this->db->where('ticketid', $id);
+       $query = $this->db->get('tbltickets_branchcredit');
+		  if($query->num_rows() > 0){
+        $result=$query->row();
+		  }
+	 return $result;
+    }
+
+    public function get_ticket_reassign_status($id = '',$where=[])
+    {
+        if (is_numeric($id)) {
+            $this->db->where('ticketstatusid', $id);
+
+            return $this->db->get(db_prefix() . 'tickets_reassign_status')->row();
+        }
+		if ((is_array($where) && count($where) > 0) || (is_string($where) && $where != '')) {
+            $this->db->where($where);
+        }
+        $this->db->order_by('statusorder', 'asc');
+
+        return $this->db->get(db_prefix() . 'tickets_reassign_status')->result_array();
+    }
+
+    public function add_reassign($data)
+    {
+        $data['date_added'] = date('Y-m-d H:i:s');
+        if (!empty($data['deadline'])) {
+            $data['deadline'] = to_sql_date($data['deadline']);
+        } else {
+            unset($data['deadline']);
+        }
+        $data['assigned_by'] = get_staff_user_id();
+        $this->db->insert(db_prefix() . 'ticket_reassign', $data);
+        $insert_id = $this->db->insert_id();
+        $data1['department']=$data['current_department'];
+        $this->db->where('ticketid', $data['ticket_id']);
+        $this->db->update('tbltickets', $data1);
+        generate_task_ticket_reassign($data['ticket_id'],$data['assigned']);
+        // if ($insert_id) {
+        //     log_activity(' Ticket reassignes Added [ID: ' . $insert_id . ', Name: ' . $data['name'] . ']');
+        // }
+        $data_ticket['department']= $data['assign_department'];
+        $data_ticket['assigned']=$data['assigned'];
+        $this->db->where('ticketid',$data['ticket_id']);
+        $this->db->update('tbltickets', $data_ticket);
+
+        $data['userid']    = 0;
+        $data['contactid'] = 0;
+        if (isset($data['assigned']) && $data['assigned'] != 0) {
+            if ($data['assigned'] != get_staff_user_id()) {
+                $notified = add_notification([
+                    'description'     => 'not_ticket_assigned_to_you',
+                    'touserid'        => $data['assigned'],
+                    'fromcompany'     => 1,
+                    'fromuserid'      => 0,
+                    'link'            => 'tickets/ticket/' .$data['ticket_id'],
+                    'additional_data' => serialize([
+                        'Ticket Re Assigned',
+                    ]),
+                ]);
+
+                if ($notified) {
+                    pusher_trigger_notification([$data['assigned']]);
+                }
+
+                send_mail_template('ticket_assigned_to_staff', get_staff($data['assigned'])->email, $data['assigned'], $data['ticket_id'], $data['userid'], $data['contactid']);
+            }
+        }
+
+        return $insert_id;
+    }
+    public function get_reassign($ticket_id='',$id='',$where=[])
+    {
+        if (is_numeric($id)) {
+            $this->db->where('id', $id);
+
+            return $this->db->get(db_prefix() . 'ticket_reassign')->row();
+        }
+		if ((is_array($where) && count($where) > 0) || (is_string($where) && $where != '')) {
+            $this->db->where($where);
+        }
+        $this->db->where('ticket_id', $ticket_id);
+
+        return $this->db->get(db_prefix() . 'ticket_reassign')->result_array();
+    }
+
+    public function get_reassign_latest($ticket_id='',$id='',$where=[])
+    {
+       
+        $this->db->where('ticket_id', $ticket_id);
+        $this->db->order_by('id', 'desc');
+        $this->db->limit(1);
+        return $this->db->get(db_prefix() . 'ticket_reassign')->row();
+    }
+
+   
+	
+}
+

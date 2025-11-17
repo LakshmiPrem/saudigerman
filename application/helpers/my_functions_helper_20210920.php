@@ -1,0 +1,749 @@
+<?php
+
+defined('BASEPATH') or exit('No direct script access allowed');
+
+function get_casedetails_complete_update($project_id){
+    $CI = &get_instance();
+    $CI->db->select('case_details');
+    $CI->db->where('project_id', $project_id);
+    $case_details_qry = $CI->db->get('tblcase_details');
+    
+    if($case_details_qry->num_rows() > 0){
+        $result = $case_details_qry->result();
+        $case_updates = '';
+        foreach ($result as $row) {
+            $case_updates .= html_entity_decode($row->case_details);
+        }
+        return $case_updates;
+    }
+
+    return '-';
+}
+
+function get_court_name_by_id($id){
+    $CI = &get_instance();
+
+    if($id && $id != 0){
+        return  $CI->db->get_where('tblcourts',array('id'=>$id))->row()->name;
+    }else{
+        return ' ';
+    }
+}
+function get_case_numbers($id){
+    $CI = &get_instance();
+    $CI->db->select('case_number');
+    $CI->db->where('project_id', $project_id);
+    $case_details_qry = $CI->db->get('tblcase_details');
+
+    if($case_details_qry->num_rows() > 0){
+        $row = $case_details_qry->result_array();
+        return json_encode($row);
+    }
+
+    return ' -';
+}
+function get_nature_of_case_by_id($id){
+    $CI = &get_instance();
+
+    if($id && $id != 0){
+        return  ' |<b> '.$CI->db->get_where('tblcase_natures',array('id'=>$id))->row()->name.'</b>';
+    }else{
+        return ' ';
+    }
+}
+function get_case_details_latest_update($project_id,$dashboard=false){
+    $CI = &get_instance();
+    $CI->db->where('project_id', $project_id);
+    $CI->db->limit(1);
+    $CI->db->order_by('id','DESC');   
+    $case_details_qry = $CI->db->get('tblcase_details');
+
+    if($case_details_qry->num_rows() > 0){
+        $row = $case_details_qry->row();
+        $type = _l($row->details_type);
+        $update = nl2br($row->case_details);
+        if($dashboard)
+            return $type.'^'.$row->case_details;
+        else
+            return '<div class="panel_s panel-info">
+                     <div class="panel-body"><h4>'.$type.'</h4>'.$update.'</div></div>';
+                         
+
+                    // return $type.' - '.$update;
+    }
+
+    return ' No updates';
+}
+function get_hearing_latest_update($project_id){
+    $CI = &get_instance();
+    $CI->db->where('project_id', $project_id);
+    $CI->db->limit(1);
+    $CI->db->order_by('id','DESC');   
+    $case_details_qry = $CI->db->get('tblhearings');
+
+    if($case_details_qry->num_rows() > 0){
+        $row = $case_details_qry->row();
+        $type = _l($row->hearing_type);
+        $update = nl2br($row->proceedings);
+        return '<div class="panel_s panel-info">
+                     <div class="panel-body"><h4>'.$type.'</h4>'.$update.'</div></div>';
+    }
+
+    return ' ';
+}
+
+function get_hearing_latest_date($project_id){
+    $CI = &get_instance();
+    $CI->db->where('project_id', $project_id);
+    $CI->db->limit(1);
+    $CI->db->order_by('id','DESC');   
+    $case_details_qry = $CI->db->get('tblhearings');
+
+    if($case_details_qry->num_rows() > 0){
+        $row = $case_details_qry->row();
+       
+        return $row->hearing_date;
+    }
+
+    return ' ';
+}
+
+function get_case_final_statuses(){
+    return array(
+        array('id'=>'dismissed','name'=>'Dismissed'),
+        array('id'=>'won','name'=>'Won'),
+        array('id'=>'failure','name'=>'Failure'),
+    );
+}
+function get_approval_statuses(){
+    return array(array('id'=>'approved','name'=>'Approved'),
+                array('id'=>'on_hold','name'=>'On Hold'),
+                array('id'=>'rejected','name'=>'Rejected')
+             );
+}
+function get_opposite_party_name($id){
+    $CI = &get_instance();
+
+    if(is_numeric($id) && $id != 0) {
+      $row =    $CI->db->get_where('tbloppositeparty',array('id'=>$id))->row();
+      if($row)
+        return $row->name;
+      else
+        return '-'; 
+    }
+    return  ' ';
+}
+function get_ip_statuses(){
+    return array(array('id'=>'applied','name'=>'Applied'),
+                array('id'=>'published','name'=>'Published'),
+                array('id'=>'active','name'=>'Active'),
+             );
+}
+function get_ip_types(){
+    return array(array('id'=>'trademark','name'=>'Trademark'),
+                array('id'=>'patent','name'=>'Patent'),
+                array('id'=>'domain_names','name'=>'Domain Names'),
+                array('id'=>'designs','name'=>'Designs'),
+                array('id'=>'copy_rights','name'=>'Copy Rights'),
+                array('id'=>'trade_secrets','name'=>'Trade Secrets'),
+                array('id'=>'ip_litigations','name'=>'IP Litigations'),
+             );
+}
+function is_approver($staff_id = '')
+{
+    $CI = & get_instance();
+    if ($staff_id == '') {
+        $staff_id = get_staff_user_id();
+    }
+
+    $CI->db->where('staffid', $staff_id)
+    ->where('is_approver', '1');
+
+    return $CI->db->count_all_results(db_prefix() . 'staff') > 0 ? true : false;
+}
+function get_all_recovery_attachments($id){
+    $CI = &get_instance();
+    $CI->db->where('rel_id', $id);
+    $CI->db->where('rel_type', 'corporate');
+    $client_main_attachments = $CI->db->get('tblfiles')->result_array();
+
+    $attachments['corporate'] = $client_main_attachments;
+
+    return $attachments;
+}
+
+function get_defaulter_follow_up_actions(){
+    return array(array('id'=>'settlement','name'=>'Settlement'),
+                 array('id'=>'field_visit','name'=>'Field Visit'),
+                 array('id'=>'office_visit','name'=>'Office Visit'),
+                 array('id'=>'follow_up','name'=>'Follow Up')
+             );
+}
+function get_mode_of_contact(){
+    return array(array('id'=>'call','name'=>'Call'),
+                 array('id'=>'visit','name'=>'Visit'),
+                 array('id'=>'email','name'=>'Email'),
+             );
+}
+function get_recovers_name($userid)
+{
+    
+    $CI =& get_instance();
+
+    $client = $CI->db->select('file_no,debtor_title')
+    ->where('id', $userid)
+    ->from('tblcorporate_recoveries')
+    ->get()
+    ->row();
+    if ($client) {
+        return $client->file_no.'-'.$client->debtor_title;
+    } else {
+        return '';
+    }
+}
+function new_number_format($n){
+    // first strip any formatting
+    if($n != ''){
+        $n = (0+str_replace(",", "", $n));
+        return number_format($n);
+    }
+    return $n;
+}
+
+function replace_comas($n){
+     $n = (0+str_replace(",", "", $n));
+    return $n;
+}
+function get_status_(){
+    return array(
+          array('id'=>'submitted','name'=>'Submitted'),
+          array('id'=>'finance_confirmed','name'=>'Finance Confirmed'),
+          array('id'=>'debt_collection','name'=>'Debt Collection'),
+          array('id'=>'legal','name'=>'Legal'),
+          array('id'=>'closed','name'=>'Closed')
+      );
+}
+function get_recoveries_profile_tabs($customer_id)
+{
+    $customer_tabs = array(
+  array(
+    'name'=>'profile',
+    'url'=>admin_url('corporate_recoveries/corporate_recovery/'.$customer_id.'?group=profile'),
+    'icon'=>'fa fa-user-circle',
+    'lang'=>_l('debtor_add_edit_profile'),
+    'visible'=>true,
+    'order'=>1,
+    ),
+  array(
+    'name'=>'notes',
+    'url'=>admin_url('corporate_recoveries/corporate_recovery/'.$customer_id.'?group=notes'),
+    'icon'=>'fa fa-sticky-note-o',
+    'lang'=>_l('defaulters_notes_tab'),
+    'visible'=>true,
+    'order'=>2,
+    ),
+   array(
+    'name'=>'demand_notice',
+    'url'=>admin_url('corporate_recoveries/corporate_recovery/'.$customer_id.'?group=demand_notice'),
+    'icon'=>'fa fa-file-text-o',
+    'lang'=>_l('demand_notice'),
+    'visible'=>true,
+    'order'=>3,
+    ),
+   array(
+    'name'=>'casediary',
+    'url'=>admin_url('corporate_recoveries/corporate_recovery/'.$customer_id.'?group=projects'),
+    'icon'=>'fa fa-balance-scale menu-icon',
+    'lang'=>_l('projects'),
+    'visible'=>(has_permission('projects', '', 'view') || has_permission('projects', '', 'view_own')),
+    'order'=>4,
+    ),
+   array(
+    'name'=>'tickets',
+    'url'=>admin_url('corporate_recoveries/corporate_recovery/'.$customer_id.'?group=tickets'),
+    'icon'=>'fa fa-ticket',
+    'lang'=>_l('issues'),
+    'visible'=>((get_option('access_tickets_to_none_staff_members') == 1 && !is_staff_member()) || is_staff_member()),
+    'order'=>5,
+    ),
+   /*array(
+    'name'=>'expenses',
+    'url'=>admin_url('corporate_recoveries/corporate_recovery/'.$customer_id.'?group=expenses'),
+    'icon'=>'fa fa-money',
+    'lang'=>_l('expenses'),
+    'visible'=>(has_permission('expenses', '', 'view') || has_permission('expenses', '', 'view_own')),
+    'order'=>4,
+    ),*/
+  /*array(
+    'name'=>'statement',
+    'url'=>admin_url('corporate_recoveries/corporate_recovery/'.$customer_id.'?group=statement'),
+    'icon'=>'fa fa-area-chart',
+    'lang'=>_l('customer_statement'),
+    'visible'=>(has_permission('invoices', '', 'view') && has_permission('payments', '', 'view')),
+    'order'=>3,
+    ),
+  array(
+    'name'=>'invoices',
+    'url'=>admin_url('corporate_recoveries/corporate_recovery/'.$customer_id.'?group=invoices'),
+    'icon'=>'fa fa-file-text',
+    'lang'=>_l('client_invoices_tab'),
+    'visible'=>(has_permission('invoices', '', 'view') || has_permission('invoices', '', 'view_own')),
+    'order'=>4,
+    ),
+  array(
+    'name'=>'payments',
+    'url'=>admin_url('corporate_recoveries/corporate_recovery/'.$customer_id.'?group=payments'),
+    'icon'=>'fa fa-line-chart',
+    'lang'=>_l('client_payments_tab'),
+    'visible'=>(has_permission('payments', '', 'view') || has_permission('invoices', '', 'view_own')),
+    'order'=>5,
+    ),
+   array(
+    'name'=>'receipts',
+    'url'=>admin_url('corporate_recoveries/corporate_recovery/'.$customer_id.'?group=receipts'),
+    'icon'=>'fa fa-money',
+    'lang'=>_l('client_receipts_tab'),
+    'visible'=>(has_permission('payments', '', 'view') || has_permission('invoices', '', 'view_own')),
+    'order'=>5,
+    ),
+  array(
+    'name'=>'proposals',
+    'url'=>admin_url('corporate_recoveries/corporate_recovery/'.$customer_id.'?group=proposals'),
+    'icon'=>'fa fa-file-powerpoint-o',
+    'lang'=>_l('proposals'),
+    'visible'=>(has_permission('proposals', '', 'view') || has_permission('proposals', '', 'view_own') || (get_option('allow_staff_view_proposals_assigned') == 1 && total_rows('tblproposals', array('assigned'=>get_staff_user_id())) > 0)),
+    'order'=>6,
+    ),
+    array(
+    'name'=>'credit_notes',
+    'url'=>admin_url('corporate_recoveries/corporate_recovery/'.$customer_id.'?group=credit_notes'),
+    'icon'=>'fa fa-sticky-note-o',
+    'lang'=>_l('credit_notes'),
+    'visible'=>(has_permission('credit_notes', '', 'view') || has_permission('credit_notes', '', 'view_own')),
+    'order'=>7,
+    ),
+   array(
+    'name'=>'estimates',
+    'url'=>admin_url('corporate_recoveries/corporate_recovery/'.$customer_id.'?group=estimates'),
+    'icon'=>'fa fa-clipboard',
+    'lang'=>_l('estimates'),
+    'visible'=>(has_permission('estimates', '', 'view') || has_permission('estimates', '', 'view_own')),
+    'order'=>8,
+    ),*/
+ 
+  /*array(
+    'name'=>'contracts',
+    'url'=>admin_url('clients/client/'.$customer_id.'?group=contracts'),
+    'icon'=>'fa fa-floppy-o',
+    'lang'=>_l('contracts'),
+    'visible'=>(has_permission('contracts', '', 'view') || has_permission('contracts', '', 'view_own')),
+    'order'=>10,
+    ),*/
+    /*array(
+    'name'=>'documents',
+    'url'=>admin_url('corporate_recoveries/corporate_recovery/'.$customer_id.'?group=documents'),
+    'icon'=>'fa fa-file',
+    'lang'=>_l('documents'),
+    'visible'=>(has_permission('documents', '', 'view') || has_permission('documents', '', 'view_own')),
+    'order'=>11,
+    ),
+    array(
+    'name'=>'casediary',
+    'url'=>admin_url('corporate_recoveries/corporate_recovery/'.$customer_id.'?group=casediary'),
+    'icon'=>'fa fa-balance-scale menu-icon',
+    'lang'=>_l('casediary'),
+    'visible'=>(has_permission('casediary', '', 'view') || has_permission('casediary', '', 'view_own')),
+    'order'=>12,
+    ),*/
+    /*array(
+    'name'=>'tasks',
+    'url'=>admin_url('corporate_recoveries/corporate_recovery/'.$customer_id.'?group=tasks'),
+    'icon'=>'fa fa-tasks',
+    'lang'=>_l('tasks'),
+    'visible'=>true,
+    'order'=>14,
+    ),*/
+  /*array(
+    'name'=>'tickets',
+    'url'=>admin_url('clients/client/'.$customer_id.'?group=tickets'),
+    'icon'=>'fa fa-ticket',
+    'lang'=>_l('tickets'),
+    'visible'=>((get_option('access_tickets_to_none_staff_members') == 1 && !is_staff_member()) || is_staff_member()),
+    'order'=>15,
+    ),*/
+  array(
+    'name'=>'attachments',
+    'url'=>admin_url('corporate_recoveries/corporate_recovery/'.$customer_id.'?group=attachments'),
+    'icon'=>'fa fa-paperclip',
+    'lang'=>_l('customer_attachments'),
+    'visible'=>true,
+    'order'=>16,
+    ),
+  /*array(
+    'name'=>'vault',
+    'url'=>admin_url('clients/client/'.$customer_id.'?group=vault'),
+    'icon'=>'fa fa-lock',
+    'lang'=>_l('vault'),
+    'visible'=>true,
+    'order'=>17,
+    ),*/
+  array(
+    'name'=>'reminders',
+    'url'=>admin_url('corporate_recoveries/corporate_recovery/'.$customer_id.'?group=reminders'),
+    'icon'=>'fa fa-clock-o',
+    'lang'=>_l('client_reminders_tab'),
+    'visible'=>true,
+    'order'=>18,
+    'id'=>'reminders',
+    ),
+ /* array(
+    'name'=>'map',
+    'url'=>admin_url('corporate_recoveries/corporate_recovery/'.$customer_id.'?group=map'),
+    'icon'=>'fa fa-map-marker',
+    'lang'=>_l('customer_map'),
+    'visible'=>true,
+    'order'=>19,
+    ),*/
+
+  );
+
+
+    usort($customer_tabs, function ($a, $b) {
+        return $a['order'] - $b['order'];
+    });
+
+    return $customer_tabs;
+}
+
+function get_latest_update($id,$type){
+  $CI = &get_instance();
+  return $CI->db->limit(1)->order_by('id','DESC')->get_where('tblnotes',array('rel_type'=>$type,'rel_id'=>$id))->row()->description;
+}
+
+function get_contact_codes(){
+    $CI =& get_instance();
+    return $CI->db->select('id,CONCAT(code,"-",name)as name')->get('tblcontactcodes')->result_array();
+}
+function get_case_client_types(){
+    return array(
+            array('id'=>'court_case','name'=>'Court Case'),
+            array('id'=>'legal_consultancy','name'=>'Legal Consultancy'),
+            array('id'=>'personal_law','name'=>'Personal Law'),
+            array('id'=>'other_projects','name'=>'Other Projects'),
+            array('id'=>'chequebounce','name'=>'PDC/Cheque Bounce'),
+           /* array('id'=>'police_complaints','name'=>'Police Complaints'),
+            array('id'=>'legal_drafting','name'=>'Legal Drafting'),
+            array('id'=>'intellectual_property','name'=>'Intellectual Property')*/
+        );
+}
+function get_emirates(){
+    return array(
+            array('id'=>'Abu Dhabi','name'=>'Abu Dhabi'),
+            array('id'=>'Dubai','name'=>'Dubai'),
+            array('id'=>'Sharjah','name'=>'Sharjah'),
+            array('id'=>'Ajman','name'=>'Ajman'),
+            array('id'=>'Umm Al-Quwain','name'=>'Umm Al-Quwain'),
+            array('id'=>'Fujairah','name'=>'Fujairah'),
+            array('id'=>'Ras Al Khaimah','name'=>'Ras Al Khaimah'),
+        );
+}
+function get_client_positions(){
+    return array(
+            array('id'=>'defendant','name'=>'Defendant'),
+            array('id'=>'plaintiff','name'=>'Plaintiff')
+        );
+}
+function get_hearing_types(){
+    return array(
+        array('id'=>'first_instance','name'=>'First Instance'),
+        array('id'=>'appeal','name'=>'Appeal'),
+        array('id'=>'appeal_opposite','name'=>'Appeal by Opposite Party'),
+        array('id'=>'cassation','name'=>'Cassation'),
+        array('id'=>'execution','name'=>'Execution'),
+        array('id'=>'execution_appeal','name'=>'Execution Appeal'),
+        array('id'=>'small_claim','name'=>'Small Claim'),
+        array('id'=>'partial_commercial_claim','name'=>'Partial Commercial Claim'),
+        array('id'=>'commercial_claim','name'=>'Commercial Claim'),
+        array('id'=>'legal_warnings','name'=>'Legal Warnings'),
+        array('id'=>'advertisement','name'=>'Advertisement'),
+        array('id'=>'judgement','name'=>'Judgement')  
+    );
+}
+
+// Templates
+
+/**
+ * Default project tabs
+ * @param  mixed $project_id project id to format the url
+ * @return array
+ */
+function get_templates_tabs_admin($project_id)
+{
+    $project_tabs = array(
+    array(
+        'name'=>'case_overview',
+        'url'=>admin_url('casetemplates/view/'.$project_id.'?group=case_overview'),
+        'icon'=>'fa fa-th',
+        'lang'=>_l('case_overview'),
+        'visible'=>true,
+        'order'=>1,
+        ),
+    array(
+        'name'=>'scope',
+        'url'=>admin_url('casetemplates/view/'.$project_id.'?group=scope'),
+        'icon'=>'fa fa-balance-scale',
+        'lang'=>_l('scope'),
+        'visible'=>true,
+        'order'=>2,
+        ),
+    array(
+        'name'=>'project_tasks',
+        'url'=>admin_url('casetemplates/view/'.$project_id.'?group=project_tasks'),
+        'icon'=>'fa fa-check-circle',
+        'lang'=>_l('tasks'),
+        'visible'=>true,
+        'order'=>3,
+        'linked_to_customer_option'=>array('view_tasks'),
+        ),
+    array(
+        'name'=>'document_checklists',
+        'url'=>admin_url('casetemplates/view/'.$project_id.'?group=document_checklists'),
+        'icon'=>'fa fa-rocket',
+        'lang'=>_l('document_checklists'),
+        'visible'=>true,
+        'order'=>4,
+        'linked_to_customer_option'=>array('view_documents'),
+        ),
+    
+    /*array(
+        'name'=>'project_milestones',
+        'url'=>admin_url('casetemplates/view/'.$project_id.'?group=project_milestones'),
+        'icon'=>'fa fa-rocket',
+        'lang'=>_l('project_milestones'),
+        'visible'=>false,
+        'order'=>5,
+        'linked_to_customer_option'=>array('view_milestones'),
+        ),*/
+    );
+
+    //$project_tabs = do_action('project_tabs_admin', $project_tabs);
+
+    usort($project_tabs, function ($a, $b) {
+        return $a['order'] - $b['order'];
+    });
+
+    return $project_tabs;
+}
+
+function init_relation_tasks_templates_table($table_attributes = array())
+{
+    $table_data = array(
+        array(
+            'name'=>_l('tasks_dt_name'),
+            'th_attrs'=>array(
+                'style'=>'min-width:200px',
+                ),
+            ),
+         array(
+            'name'=>_l('tasks_dt_datestart'),
+            'th_attrs'=>array(
+                'style'=>'min-width:75px',
+                'class'=>'not_visible',
+                ),
+            ),
+         array(
+            'name'=>_l('task_duedate'),
+            'th_attrs'=>array(
+                'style'=>'min-width:75px',
+                'class'=>'duedate not_visible',
+
+                ),
+            ),
+
+         array(
+            'name'=>_l('tags'),
+            'th_attrs'=>array(
+                'class'=>'duedate not_visible',
+
+                ),
+            ),
+        _l('task_add_edit_description'),
+        _l('task_status'),
+    );
+
+   
+
+    $custom_fields = get_custom_fields('tasks', array(
+        'show_on_table' => 1,
+    ));
+
+    foreach ($custom_fields as $field) {
+        array_push($table_data, $field['name']);
+    }
+
+    //$table_data = do_action('tasks_related_table_columns', $table_data);
+
+    array_push($table_data, array('name'=>_l('options'), 'th_attrs'=>array('class'=>'table-tasks-options')));
+
+    $name = 'rel-tasks';
+    if ($table_attributes['data-new-rel-type'] == 'lead') {
+        $name = 'rel-tasks-leads';
+    }if ($table_attributes['data-new-rel-type'] == 'defaulter') {
+        $name = 'rel-tasks-defaulter';
+    }
+
+    $table = '';
+    $CI =& get_instance();
+    $table_name = '.table-' . $name;
+    /*$CI->load->view('admin/tasks/tasks_filter_by', array(
+        'view_table_name' => $table_name,
+    ));*/
+    if (has_permission('tasks', '', 'create')) {
+        $disabled   = '';
+        $table_name = addslashes($table_name);
+        if ($table_attributes['data-new-rel-type'] == 'customer' && is_numeric($table_attributes['data-new-rel-id'])) {
+            if (total_rows('tblclients', array(
+                'active' => 0,
+                'userid' => $table_attributes['data-new-rel-id'],
+            )) > 0) {
+                $disabled = ' disabled';
+            }
+        }
+        /*if ($table_attributes['data-new-rel-type'] == 'defaulter' && is_numeric($table_attributes['data-new-rel-id'])) {
+            if (total_rows('tbldefaulters', array(
+                'active' => 0,
+                'id' => $table_attributes['data-new-rel-id'],
+            )) > 0) {
+                $disabled = ' disabled';
+            }
+        }*/
+        /*if($table_attributes['data-new-rel-type'] == 'casediary'){
+            $new_task_label = 'new_action';
+        }else{*/
+            $new_task_label = 'new_task';
+        //}
+        // projects have button on top
+        
+        echo "<a href='#' class='btn btn-info pull-left mbot25 mright5 new-task-relation" . $disabled . "' onclick=\"new_template_task_from_relation('$table_name'); return false;\" data-rel-id='".$table_attributes['data-new-rel-id']."' data-rel-type='".$table_attributes['data-new-rel-type']."'>" . _l($new_task_label) . "</a>";
+        
+        
+
+    }
+    echo "<div class='clearfix'></div>";
+    $table .= render_datatable($table_data, $name, array(), $table_attributes);
+
+    return $table;
+}
+function get_document_masters(){
+    $CI =& get_instance();
+    $documentmaster = $CI->db->get('tbldocumentmaster')->result_array();
+    if ($documentmaster) {
+        return $documentmaster;
+    }
+
+    return array();
+}
+
+function get_document_master_name($id){
+    $CI = &get_instance();
+
+    if($id){
+        return  $CI->db->get_where('tbldocumentmaster',array('id'=>$id))->row()->name;
+    }
+}
+function get_case_templates($casetype='')
+{
+    $CI =& get_instance();
+    if($casetype!= '')
+    $CI->db->where('case_type', $casetype);
+    $project = $CI->db->get('tblcasetemplates')->result_array();
+    if ($project) {
+        return $project;
+    }
+
+    return false;
+}
+
+function template_data_transfer($matterid,$templateid){
+
+        // Copy Scopes
+        $CI =& get_instance();
+        $scopes = $CI->db->get_where('tblcasetemplate_scopes',array('casetemplate_id'=>$templateid))->result();
+        foreach ($scopes as $scope) {
+            $data['scope_description'] = $scope->scope_description;
+            $data['case_id']  = $matterid;
+            $CI->db->insert('tblcase_scopes',$data);
+        }
+
+        // Get Tasks in the milestones
+        $tasks = $CI->db->get_where('tblstafftasks_templates',array('rel_id'=>$templateid,'rel_type'=>'casetemplates'))->result_array();
+            foreach ($tasks as $task) {
+                $cur_task_id = $task['id'];
+                $task['milestone'] = 0;
+                $task['rel_id'] = $matterid;
+                $task['rel_type'] = 'project';
+                $task['startdate'] = _d(date('Y-m-d'));
+                $CI->load->model('tasks_model');
+                unset($task['id']);
+                unset($task['repeat_every']);
+                unset($task['repeat_type_custom']);
+                
+                $task_id = $CI->tasks_model->add($task);
+            }
+        // Documnt master
+        $document_masters = $CI->db->get_where('tblcasetemplates',array('id'=>$templateid))->row()->document_checklists;
+        $document_masters = explode(',', $document_masters);
+
+        foreach ($document_masters as $doc) {
+           /* $d_data['case_id'] = $matterid;
+            $d_data['dateadded'] = date('Y-m-d H:i:s');
+            $d_data['added_by'] = get_staff_user_id();
+            $d_data['document_checklists_id'] = $doc;
+            $d_data['name'] = get_document_master_name($doc);
+            $this->db->insert('tblcase_documentmaster',$d_data);*/
+
+            $data2 = array(
+                'project_id' => $matterid,
+                'file_name' => '',
+                'filetype' => '',
+                'dateadded' => date('Y-m-d H:i:s'),
+                'staffid' =>get_staff_user_id(),
+                'contact_id' => 0,
+                'subject' => get_document_master_name($doc),
+                'visible_to_customer' =>0,
+                'document_master_id' =>$doc,
+            );
+            $CI->db->insert('tblproject_files', $data2);
+
+            
+        } 
+    }
+
+function get_proposal_types(){
+    return array(
+            array('id'=>'fee_proposal_without_loe','name'=>'Fee Proposal without LoE'),
+            array('id'=>'fee_proposal_with_loe','name'=>'Fee Proposal with LoE'),
+            array('id'=>'loe','name'=>'LoE'),
+            array('id'=>'offer_letter_for_retainer_contract','name'=>'Offer Letter for Retainer Contract'),
+            array('id'=>'retainer_contract','name'=>'Retainer Contract'),
+        );
+}
+function get_matter_template_name_by_id($id)
+{
+    $CI =& get_instance();
+    $CI->db->select('name');
+    $CI->db->where('id', $id);
+    $project = $CI->db->get('tblcasetemplates')->row();
+
+    if ($project) {
+        return $project->name;
+    }
+    return '';
+}
+
+function get_proposal_fee_statuses(){
+    $CI = &get_instance();
+    return $CI->db->get('tblproposal_fee_status')->result();
+
+} 
+?>

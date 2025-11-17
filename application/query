@@ -1,0 +1,16 @@
+ALTER TABLE tblapprovals ADD rejected_reason TEXT NOT NULL AFTER status;
+ALTER TABLE tblapprovals ADD rejected_date DATE NULL AFTER rejected_reason;
+
+ALTER TABLE tblapprovals 
+ADD COLUMN inc_app_name TINYINT(1) DEFAULT '0' AFTER sign_placeholder,
+ADD COLUMN inc_time_stamp TINYINT(1) DEFAULT '0' AFTER inc_app_name;
+
+ALTER TABLE tblstaff ADD is_stamper TINYINT NOT NULL DEFAULT '0' AFTER esignature; 
+ALTER TABLE tblcontracts CHANGE status status VARCHAR(30) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT '1';
+
+
+
+INSERT INTO `tblapproval_headings` (`id`, `rel_id`, `rel_type`, `name`, `active`, `head_order`) VALUES
+('', 8, 'contract', 'Signed By', 1, 1),
+('', 8, 'contract', 'Read By', 1, 2),
+('', 8, 'contract', 'Delegated To', 1, 3);

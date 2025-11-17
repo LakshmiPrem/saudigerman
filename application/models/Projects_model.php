@@ -1,0 +1,4132 @@
+<?php
+
+defined('BASEPATH') or exit('No direct script access allowed');
+
+class Projects_model extends App_Model
+{
+    private $project_settings;
+
+    public function __construct()
+    {
+        parent::__construct();
+
+        $project_settings = [
+            'available_features',
+            'view_tasks',
+            'create_tasks',
+            'edit_tasks',
+            'comment_on_tasks',
+            'view_task_comments',
+            'view_task_attachments',
+            'view_task_checklist_items',
+            'upload_on_tasks',
+            'view_task_total_logged_time',
+            'view_finance_overview',
+            'upload_files',
+            'open_discussions',
+            'view_milestones',
+            'view_gantt',
+            'view_timesheets',
+            'view_activity_log',
+            'view_team_members',
+            'hide_tasks_on_main_tasks_table',
+        ];
+
+        $this->project_settings = hooks()->apply_filters('project_settings', $project_settings);
+    }
+
+    public function get_project_statuses()
+    {
+        $statuses = hooks()->apply_filters('before_get_project_statuses', [
+            [
+                'id'             => 1,
+                'color'          => '#989898',
+                'name'           => _l('project_status_1'),
+                'order'          => 1,
+                'filter_default' => true,
+            ],
+            [
+                'id'             => 2,
+                'color'          => '#84C529',
+                'name'           => _l('project_status_2'),
+                'order'          => 2,
+                'filter_default' => true,
+            ],
+            [
+                'id'             => 3,
+                'color'          => '#FF1493',
+                'name'           => _l('project_status_3'),
+                'order'          => 3,
+                'filter_default' => true,
+            ],
+            [
+                'id'             => 4,
+                'color'          => '#ff0000',
+                'name'           => _l('project_status_4'),
+                'order'          => 100,
+                'filter_default' => false,
+            ],
+            [
+                'id'             => 5,
+                'color'          => '#03a9f4',
+                'name'           => _l('project_status_5'),
+                'order'          => 4,
+                'filter_default' => false,
+            ],
+			[
+                'id'             => 6,
+                'color'          => '#0000ff',
+                'name'           => _l('project_status_6'),
+                'order'          => 6,
+                'filter_default' => false,
+            ],
+        ]);
+
+        usort($statuses, function ($a, $b) {
+            return $a['order'] - $b['order'];
+        });
+
+        return $statuses;
+    }
+
+    public function get_distinct_tasks_timesheets_staff($project_id)
+    {
+        return $this->db->query('SELECT DISTINCT staff_id FROM ' . db_prefix() . 'taskstimers LEFT JOIN ' . db_prefix() . 'tasks ON ' . db_prefix() . 'tasks.id = ' . db_prefix() . 'taskstimers.task_id WHERE rel_type="project" AND rel_id=' . $this->db->escape_str($project_id))->result_array();
+    }
+
+    public function get_distinct_projects_members()
+    {
+        return $this->db->query('SELECT staff_id, firstname, lastname FROM ' . db_prefix() . 'project_members JOIN ' . db_prefix() . 'staff ON ' . db_prefix() . 'staff.staffid=' . db_prefix() . 'project_members.staff_id GROUP by staff_id order by firstname ASC')->result_array();
+    }
+
+    public function get_most_used_billing_type()
+    {
+        return $this->db->query('SELECT billing_type, COUNT(*) AS total_usage
+                FROM ' . db_prefix() . 'projects
+                GROUP BY billing_type
+                ORDER BY total_usage DESC
+                LIMIT 1')->row();
+    }
+
+    public function timers_started_for_project($project_id, $where = [], $task_timers_where = [])
+    {
+        $this->db->where($where);
+        $this->db->where('end_time IS NULL');
+        $this->db->where(db_prefix() . 'tasks.rel_id', $project_id);
+        $this->db->where(db_prefix() . 'tasks.rel_type', 'project');
+        $this->db->join(db_prefix() . 'tasks', db_prefix() . 'tasks.id=' . db_prefix() . 'taskstimers.task_id');
+        $total = $this->db->count_all_results(db_prefix() . 'taskstimers');
+
+        return $total > 0 ? true : false;
+    }
+
+    public function pin_action($id)
+    {
+        if (total_rows(db_prefix() . 'pinned_projects', [
+            'staff_id' => get_staff_user_id(),
+            'project_id' => $id,
+        ]) == 0) {
+            $this->db->insert(db_prefix() . 'pinned_projects', [
+                'staff_id'   => get_staff_user_id(),
+                'project_id' => $id,
+            ]);
+
+            return true;
+        }
+        $this->db->where('project_id', $id);
+        $this->db->where('staff_id', get_staff_user_id());
+        $this->db->delete(db_prefix() . 'pinned_projects');
+
+        return true;
+    }
+
+    public function get_currency($id)
+    {
+        $this->load->model('currencies_model');
+        $customer_currency = $this->clients_model->get_customer_default_currency(get_client_id_by_project_id($id));
+        if ($customer_currency != 0) {
+            $currency = $this->currencies_model->get($customer_currency);
+        } else {
+            $currency = $this->currencies_model->get_base_currency();
+        }
+
+        return $currency;
+    }
+
+    public function calc_progress($id)
+    {
+        $this->db->select('progress_from_tasks,progress,status');
+        $this->db->where('id', $id);
+        $project = $this->db->get(db_prefix() . 'projects')->row();
+
+        if ($project->status == 4) {
+            return 100;
+        }
+
+        if ($project->progress_from_tasks == 1) {
+            return $this->calc_progress_by_tasks($id);
+        }
+
+        return $project->progress;
+    }
+
+    public function calc_progress_by_tasks($id)
+    {
+        $total_project_tasks = total_rows(db_prefix() . 'tasks', [
+            'rel_type' => 'project',
+            'rel_id'   => $id,
+        ]);
+        $total_finished_tasks = total_rows(db_prefix() . 'tasks', [
+            'rel_type' => 'project',
+            'rel_id'   => $id,
+            'status'   => 5,
+        ]);
+        $percent = 0;
+        if ($total_finished_tasks >= floatval($total_project_tasks)) {
+            $percent = 100;
+        } else {
+            if ($total_project_tasks !== 0) {
+                $percent = number_format(($total_finished_tasks * 100) / $total_project_tasks, 2);
+            }
+        }
+
+        return $percent;
+    }
+
+    public function get_last_project_settings()
+    {
+        $this->db->select('id');
+        $this->db->order_by('id', 'DESC');
+        $this->db->limit(1);
+        $last_project = $this->db->get(db_prefix() . 'projects')->row();
+        if ($last_project) {
+            return $this->get_project_settings($last_project->id);
+        }
+
+        return [];
+    }
+
+    public function get_settings()
+    {
+        return $this->project_settings;
+    }
+
+    public function get($id = '', $where = [])
+    {
+        $this->db->where($where);
+        if (is_numeric($id)) {
+            $this->db->where('id', $id);
+            $project = $this->db->get(db_prefix() . 'projects')->row();
+            if ($project) {
+                $project->shared_vault_entries = $this->clients_model->get_vault_entries($project->clientid, ['share_in_projects' => 1]);
+                $settings                      = $this->get_project_settings($id);
+
+                // SYNC NEW TABS
+                $tabs                        = get_project_tabs_admin();
+                $tabs_flatten                = [];
+                $settings_available_features = [];
+
+                $available_features_index = false;
+                foreach ($settings as $key => $setting) {
+                    if ($setting['name'] == 'available_features') {
+                        $available_features_index = $key;
+                        $available_features       = unserialize($setting['value']);
+                        if (is_array($available_features)) {
+                            foreach ($available_features as $name => $avf) {
+                                $settings_available_features[] = $name;
+                            }
+                        }
+                    }
+                }
+                foreach ($tabs as $tab) {
+                    if (isset($tab['collapse'])) {
+                        foreach ($tab['children'] as $d) {
+                            $tabs_flatten[] = $d['slug'];
+                        }
+                    } else {
+                        $tabs_flatten[] = $tab['slug'];
+                    }
+                }
+                if (count($settings_available_features) != $tabs_flatten) {
+                    foreach ($tabs_flatten as $tab) {
+                        if (!in_array($tab, $settings_available_features)) {
+                            if ($available_features_index) {
+                                $current_available_features_settings = $settings[$available_features_index];
+                                $tmp                                 = unserialize($current_available_features_settings['value']);
+                                $tmp[$tab]                           = 1;
+                                $this->db->where('id', $current_available_features_settings['id']);
+                                $this->db->update(db_prefix() . 'project_settings', ['value' => serialize($tmp)]);
+                            }
+                        }
+                    }
+                }
+
+                $project->settings = new StdClass();
+
+                foreach ($settings as $setting) {
+                    $project->settings->{$setting['name']} = $setting['value'];
+                }
+
+                $project->client_data = new StdClass();
+                $project->client_data = $this->clients_model->get($project->clientid);
+
+                $project            = hooks()->apply_filters('project_get', $project);
+                $GLOBALS['project'] = $project;
+
+                return $project;
+            }
+
+            return null;
+        }
+
+        $this->db->select('*,' . get_sql_select_client_company());
+        $this->db->join(db_prefix() . 'clients', db_prefix() . 'clients.userid=' . db_prefix() . 'projects.clientid');
+        $this->db->order_by('id', 'desc');
+
+        return $this->db->get(db_prefix() . 'projects')->result_array();
+    }
+
+    public function calculate_total_by_project_hourly_rate($seconds, $hourly_rate)
+    {
+        $hours       = seconds_to_time_format($seconds);
+        $decimal     = sec2qty($seconds);
+        $total_money = 0;
+        $total_money += ($decimal * $hourly_rate);
+
+        return [
+            'hours'       => $hours,
+            'total_money' => $total_money,
+        ];
+    }
+
+    public function calculate_total_by_task_hourly_rate($tasks)
+    {
+        $total_money    = 0;
+        $_total_seconds = 0;
+
+        foreach ($tasks as $task) {
+            $seconds = $task['total_logged_time'];
+            $_total_seconds += $seconds;
+            $total_money += sec2qty($seconds) * $task['hourly_rate'];
+        }
+
+        return [
+            'total_money'   => $total_money,
+            'total_seconds' => $_total_seconds,
+        ];
+    }
+
+    public function get_tasks($id, $where = [], $apply_restrictions = false, $count = false, $callback = null)
+    {
+        $has_permission                    = has_permission('tasks', '', 'view');
+        $show_all_tasks_for_project_member = get_option('show_all_tasks_for_project_member');
+
+        $select = implode(', ', prefixed_table_fields_array(db_prefix() . 'tasks')) . ',' . db_prefix() . 'milestones.name as milestone_name,
+        (SELECT SUM(CASE
+            WHEN end_time is NULL THEN ' . time() . '-start_time
+            ELSE end_time-start_time
+            END) FROM ' . db_prefix() . 'taskstimers WHERE task_id=' . db_prefix() . 'tasks.id) as total_logged_time,
+           ' . get_sql_select_task_assignees_ids() . ' as assignees_ids
+        ';
+
+        if (!is_client_logged_in() && is_staff_logged_in()) {
+            $select .= ',(SELECT staffid FROM ' . db_prefix() . 'task_assigned WHERE taskid=' . db_prefix() . 'tasks.id AND staffid=' . get_staff_user_id() . ') as current_user_is_assigned';
+        }
+
+        if (is_client_logged_in()) {
+            $this->db->where('visible_to_client', 1);
+        }
+
+        $this->db->select($select);
+
+        $this->db->join(db_prefix() . 'milestones', db_prefix() . 'milestones.id = ' . db_prefix() . 'tasks.milestone', 'left');
+        $this->db->where('rel_id', $id);
+        $this->db->where('rel_type', 'project');
+        if ($apply_restrictions == true) {
+            if (!is_client_logged_in() && !$has_permission && $show_all_tasks_for_project_member == 0) {
+                $this->db->where('(
+                    ' . db_prefix() . 'tasks.id IN (SELECT taskid FROM ' . db_prefix() . 'task_assigned WHERE staffid=' . get_staff_user_id() . ')
+                    OR ' . db_prefix() . 'tasks.id IN(SELECT taskid FROM ' . db_prefix() . 'task_followers WHERE staffid=' . get_staff_user_id() . ')
+                    OR is_public = 1
+                    OR (addedfrom =' . get_staff_user_id() . ' AND is_added_from_contact = 0)
+                    )');
+            }
+        }
+
+        $this->db->where($where);
+
+        // Milestones kanban order
+        // Request is admin/projects/milestones_kanban
+        if ($this->uri->segment(3) == 'milestones_kanban' | $this->uri->segment(3) == 'milestones_kanban_load_more') {
+            $this->db->order_by('milestone_order', 'asc');
+        } else {
+            $orderByString = hooks()->apply_filters('project_tasks_array_default_order', 'FIELD(status, 5), duedate IS NULL ASC, duedate');
+            $this->db->order_by($orderByString, '', false);
+        }
+
+        if ($callback) {
+            $callback();
+        }
+
+        if ($count == false) {
+            $tasks = $this->db->get(db_prefix() . 'tasks')->result_array();
+        } else {
+            $tasks = $this->db->count_all_results(db_prefix() . 'tasks');
+        }
+
+        return $tasks;
+    }
+
+    public function cancel_recurring_tasks($id)
+    {
+        $this->db->where('rel_type', 'project');
+        $this->db->where('rel_id', $id);
+        $this->db->where('recurring', 1);
+        $this->db->where('(cycles != total_cycles OR cycles=0)');
+
+        $this->db->update(db_prefix() . 'tasks', [
+            'recurring_type'      => null,
+            'repeat_every'        => 0,
+            'cycles'              => 0,
+            'recurring'           => 0,
+            'custom_recurring'    => 0,
+            'last_recurring_date' => null,
+        ]);
+    }
+
+    public function do_milestones_kanban_query($milestone_id, $project_id, $page = 1, $where = [], $count = false)
+    {
+        $where['milestone'] = $milestone_id;
+        $limit              = get_option('tasks_kanban_limit');
+        $tasks              = $this->get_tasks($project_id, $where, true, $count, function () use ($count, $page, $limit) {
+            if ($count == false) {
+                if ($page > 1) {
+                    $position = (($page - 1) * $limit);
+                    $this->db->limit($limit, $position);
+                } else {
+                    $this->db->limit($limit);
+                }
+            }
+        });
+
+        return $tasks;
+    }
+
+    public function get_files($project_id,$finaloc='')
+    {
+        if (is_client_logged_in()) {
+            $this->db->where('visible_to_customer', 1);
+        }
+        $this->db->where('project_id', $project_id);
+		if(!empty($finaloc)){
+			$this->db->where('final_doc', $finaloc);
+		}
+			
+
+        return $this->db->get(db_prefix() . 'project_files')->result_array();
+    }
+ 	public function get_files_bycategory($project_id,$did)
+    {
+       $this->db->select('*');
+       $this->db->join(db_prefix() . 'document_types', db_prefix() . 'document_types.id=' . db_prefix() . 'project_files.document_type');
+       $this->db->where('project_id', $project_id);
+	   $this->db->where('tbldocument_types.category', $did);
+        return $this->db->get(db_prefix() . 'project_files')->result_array();
+    }
+
+    public function get_file($id, $project_id = false)
+    {
+        if (is_client_logged_in()) {
+            $this->db->where('visible_to_customer', 1);
+        }
+        $this->db->where('id', $id);
+        $file = $this->db->get(db_prefix() . 'project_files')->row();
+
+        if ($file && $project_id) {
+            if ($file->project_id != $project_id) {
+                return false;
+            }
+        }
+
+        return $file;
+    }
+
+    public function update_file_data($data)
+    {
+        $this->db->where('id', $data['id']);
+        unset($data['id']);
+         if(isset($data['issue_date']) && ($data['issue_date'] != '') && ($data['issue_date'] != '00-00-0000') ){
+            $data['issue_date'] = date('Y-m-d',strtotime($data['issue_date']));
+        } 
+        if(isset($data['expiry_date']) && ($data['expiry_date'] != '') && ($data['expiry_date'] != '00-00-0000') ){
+            $data['expiry_date'] = date('Y-m-d',strtotime($data['expiry_date']));
+    
+        }   
+        $this->db->update(db_prefix() . 'project_files', $data);
+    }
+
+    public function change_file_visibility($id, $visible)
+    {
+        $this->db->where('id', $id);
+        $this->db->update(db_prefix() . 'project_files', [
+            'visible_to_customer' => $visible,
+        ]);
+    }
+
+    public function change_activity_visibility($id, $visible)
+    {
+        $this->db->where('id', $id);
+        $this->db->update(db_prefix() . 'project_activity', [
+            'visible_to_customer' => $visible,
+        ]);
+    }
+
+    public function remove_file($id, $logActivity = true)
+    {
+        hooks()->do_action('before_remove_project_file', $id);
+
+        $this->db->where('id', $id);
+        $file = $this->db->get(db_prefix() . 'project_files')->row();
+        if ($file) {
+            if (empty($file->external)) {
+                $path     = get_upload_path_by_type('project') . $file->project_id . '/';
+                $fullPath = $path . $file->file_name;
+                if (file_exists($fullPath)) {
+                    unlink($fullPath);
+                    $fname     = pathinfo($fullPath, PATHINFO_FILENAME);
+                    $fext      = pathinfo($fullPath, PATHINFO_EXTENSION);
+                    $thumbPath = $path . $fname . '_thumb.' . $fext;
+
+                    if (file_exists($thumbPath)) {
+                        unlink($thumbPath);
+                    }
+                }
+            }
+
+            $this->db->where('id', $id);
+            $this->db->delete(db_prefix() . 'project_files');
+            if ($logActivity) {
+                $this->log_activity($file->project_id, 'project_activity_project_file_removed', $file->file_name, $file->visible_to_customer);
+            }
+
+            // Delete discussion comments
+            $this->_delete_discussion_comments($id, 'file');
+
+            if (is_dir(get_upload_path_by_type('project') . $file->project_id)) {
+                // Check if no attachments left, so we can delete the folder also
+                $other_attachments = list_files(get_upload_path_by_type('project') . $file->project_id);
+                if (count($other_attachments) == 0) {
+                    delete_dir(get_upload_path_by_type('project') . $file->project_id);
+                }
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    public function get_project_overview_weekly_chart_data($id, $type = 'this_week')
+    {
+        $billing_type = get_project_billing_type($id);
+        $chart        = [];
+
+        $has_permission_create = has_permission('projects', '', 'create');
+        // If don't have permission for projects create show only bileld time
+        if (!$has_permission_create) {
+            $timesheets_type = 'total_logged_time_only';
+        } else {
+            if ($billing_type == 2 || $billing_type == 3) {
+                $timesheets_type = 'billable_unbilled';
+            } else {
+                $timesheets_type = 'total_logged_time_only';
+            }
+        }
+
+        $chart['data']             = [];
+        $chart['data']['labels']   = [];
+        $chart['data']['datasets'] = [];
+
+        $chart['data']['datasets'][] = [
+            'label'           => ($timesheets_type == 'billable_unbilled' ? str_replace(':', '', _l('project_overview_billable_hours')) : str_replace(':', '', _l('project_overview_logged_hours'))),
+            'data'            => [],
+            'backgroundColor' => [],
+            'borderColor'     => [],
+            'borderWidth'     => 1,
+        ];
+
+        if ($timesheets_type == 'billable_unbilled') {
+            $chart['data']['datasets'][] = [
+                'label'           => str_replace(':', '', _l('project_overview_unbilled_hours')),
+                'data'            => [],
+                'backgroundColor' => [],
+                'borderColor'     => [],
+                'borderWidth'     => 1,
+            ];
+        }
+
+        $temp_weekdays_data = [];
+        $weeks              = [];
+        $where_time         = '';
+
+        if ($type == 'this_month') {
+            $beginThisMonth = date('Y-m-01');
+            $endThisMonth   = date('Y-m-t 23:59:59');
+
+            $weeks_split_start = date('Y-m-d', strtotime($beginThisMonth));
+            $weeks_split_end   = date('Y-m-d', strtotime($endThisMonth));
+
+            $where_time = 'start_time BETWEEN ' . strtotime($beginThisMonth) . ' AND ' . strtotime($endThisMonth);
+        } elseif ($type == 'last_month') {
+            $beginLastMonth = date('Y-m-01', strtotime('-1 MONTH'));
+            $endLastMonth   = date('Y-m-t 23:59:59', strtotime('-1 MONTH'));
+
+            $weeks_split_start = date('Y-m-d', strtotime($beginLastMonth));
+            $weeks_split_end   = date('Y-m-d', strtotime($endLastMonth));
+
+            $where_time = 'start_time BETWEEN ' . strtotime($beginLastMonth) . ' AND ' . strtotime($endLastMonth);
+        } elseif ($type == 'last_week') {
+            $beginLastWeek = date('Y-m-d', strtotime('monday last week'));
+            $endLastWeek   = date('Y-m-d 23:59:59', strtotime('sunday last week'));
+            $where_time    = 'start_time BETWEEN ' . strtotime($beginLastWeek) . ' AND ' . strtotime($endLastWeek);
+        } else {
+            $beginThisWeek = date('Y-m-d', strtotime('monday this week'));
+            $endThisWeek   = date('Y-m-d 23:59:59', strtotime('sunday this week'));
+            $where_time    = 'start_time BETWEEN ' . strtotime($beginThisWeek) . ' AND ' . strtotime($endThisWeek);
+        }
+
+        if ($type == 'this_week' || $type == 'last_week') {
+            foreach (get_weekdays() as $day) {
+                array_push($chart['data']['labels'], $day);
+            }
+            $weekDay = date('w', strtotime(date('Y-m-d H:i:s')));
+            $i       = 0;
+            foreach (get_weekdays_original() as $day) {
+                if ($weekDay != '0') {
+                    $chart['data']['labels'][$i] = date('d', strtotime($day . ' ' . str_replace('_', ' ', $type))) . ' - ' . $chart['data']['labels'][$i];
+                } else {
+                    if ($type == 'this_week') {
+                        $strtotime = 'last ' . $day;
+                        if ($day == 'Sunday') {
+                            $strtotime = 'sunday this week';
+                        }
+                        $chart['data']['labels'][$i] = date('d', strtotime($strtotime)) . ' - ' . $chart['data']['labels'][$i];
+                    } else {
+                        $strtotime                   = $day . ' last week';
+                        $chart['data']['labels'][$i] = date('d', strtotime($strtotime)) . ' - ' . $chart['data']['labels'][$i];
+                    }
+                }
+                $i++;
+            }
+        } elseif ($type == 'this_month' || $type == 'last_month') {
+            $weeks_split_start = new DateTime($weeks_split_start);
+            $weeks_split_end   = new DateTime($weeks_split_end);
+            $weeks             = get_weekdays_between_dates($weeks_split_start, $weeks_split_end);
+            $total_weeks       = count($weeks);
+            for ($i = 1; $i <= $total_weeks; $i++) {
+                array_push($chart['data']['labels'], split_weeks_chart_label($weeks, $i));
+            }
+        }
+
+        $loop_break = ($timesheets_type == 'billable_unbilled') ? 2 : 1;
+
+        for ($i = 0; $i < $loop_break; $i++) {
+            $temp_weekdays_data = [];
+            // Store the weeks in new variable for each loop to prevent duplicating
+            $tmp_weeks = $weeks;
+
+
+            $color = '3, 169, 244';
+
+            $where = 'task_id IN (SELECT id FROM ' . db_prefix() . 'tasks WHERE rel_type = "project" AND rel_id = "' . $this->db->escape_str($id) . '"';
+
+            if ($timesheets_type != 'total_logged_time_only') {
+                $where .= ' AND billable=1';
+                if ($i == 1) {
+                    $color = '252, 45, 66';
+                    $where .= ' AND billed = 0';
+                }
+            }
+
+            $where .= ')';
+            $this->db->where($where_time);
+            $this->db->where($where);
+            if (!$has_permission_create) {
+                $this->db->where('staff_id', get_staff_user_id());
+            }
+            $timesheets = $this->db->get(db_prefix() . 'taskstimers')->result_array();
+
+            foreach ($timesheets as $t) {
+                $total_logged_time = 0;
+                if ($t['end_time'] == null) {
+                    $total_logged_time = time() - $t['start_time'];
+                } else {
+                    $total_logged_time = $t['end_time'] - $t['start_time'];
+                }
+
+                if ($type == 'this_week' || $type == 'last_week') {
+                    $weekday = date('N', $t['start_time']);
+                    if (!isset($temp_weekdays_data[$weekday])) {
+                        $temp_weekdays_data[$weekday] = 0;
+                    }
+                    $temp_weekdays_data[$weekday] += $total_logged_time;
+                } else {
+                    // months - this and last
+                    $w = 1;
+                    foreach ($tmp_weeks as $week) {
+                        $start_time_date = strftime('%Y-%m-%d', $t['start_time']);
+                        if (!isset($tmp_weeks[$w]['total'])) {
+                            $tmp_weeks[$w]['total'] = 0;
+                        }
+                        if (in_array($start_time_date, $week)) {
+                            $tmp_weeks[$w]['total'] += $total_logged_time;
+                        }
+                        $w++;
+                    }
+                }
+            }
+
+            if ($type == 'this_week' || $type == 'last_week') {
+                ksort($temp_weekdays_data);
+                for ($w = 1; $w <= 7; $w++) {
+                    $total_logged_time = 0;
+                    if (isset($temp_weekdays_data[$w])) {
+                        $total_logged_time = $temp_weekdays_data[$w];
+                    }
+                    array_push($chart['data']['datasets'][$i]['data'], sec2qty($total_logged_time));
+                    array_push($chart['data']['datasets'][$i]['backgroundColor'], 'rgba(' . $color . ',0.8)');
+                    array_push($chart['data']['datasets'][$i]['borderColor'], 'rgba(' . $color . ',1)');
+                }
+            } else {
+                // loop over $tmp_weeks because the unbilled is shown twice because we auto increment twice
+                // months - this and last
+                foreach ($tmp_weeks as $week) {
+                    $total = 0;
+                    if (isset($week['total'])) {
+                        $total = $week['total'];
+                    }
+                    $total_logged_time = $total;
+                    array_push($chart['data']['datasets'][$i]['data'], sec2qty($total_logged_time));
+                    array_push($chart['data']['datasets'][$i]['backgroundColor'], 'rgba(' . $color . ',0.8)');
+                    array_push($chart['data']['datasets'][$i]['borderColor'], 'rgba(' . $color . ',1)');
+                }
+            }
+        }
+
+        return $chart;
+    }
+
+    public function get_gantt_data($project_id, $type = 'milestones', $taskStatus = null)
+    {
+        $project_data = $this->get($project_id);
+        $type_data    = [];
+        if ($type == 'milestones') {
+            $type_data[] = [
+                'name'   => _l('milestones_uncategorized'),
+                'dep_id' => 'milestone_0',
+                'id'     => 0,
+            ];
+            $_milestones = $this->get_milestones($project_id);
+            foreach ($_milestones as $m) {
+                $m['dep_id']       = 'milestone_' . $m['id'];
+                $m['milestone_id'] = $m['id'];
+                $type_data[]       = $m;
+            }
+        } elseif ($type == 'members') {
+            $type_data[] = [
+                'name'     => _l('task_list_not_assigned'),
+                'dep_id'   => 'member_0',
+                'staff_id' => 0,
+            ];
+            $_members = $this->get_project_members($project_id);
+            foreach ($_members as $m) {
+                $m['dep_id'] = 'member_' . $m['staff_id'];
+                $m['name']   = get_staff_full_name($m['staff_id']);
+                $type_data[] = $m;
+            }
+        } else {
+            if (!$taskStatus) {
+                $statuses = $this->tasks_model->get_statuses();
+                foreach ($statuses as $status) {
+                    $status['dep_id'] = 'status_' . $status['id'];
+                    $status['name']   = format_task_status($status['id'], false, true);
+                    $type_data[]      = $status;
+                }
+            } else {
+                $status['id']     = $taskStatus;
+                $status['dep_id'] = 'status_' . $taskStatus;
+                $status['name']   = format_task_status($taskStatus, false, true);
+                $type_data[]      = $status;
+            }
+        }
+
+        $gantt_data     = [];
+        $has_permission = has_permission('tasks', '', 'view');
+        foreach ($type_data as $data) {
+            if ($type == 'milestones') {
+                $tasks = $this->get_tasks($project_id, 'milestone=' . $this->db->escape_str($data['id']) . ($taskStatus ? ' AND ' . db_prefix() . 'tasks.status=' . $this->db->escape_str($taskStatus) : ''), true);
+                if (isset($data['due_date'])) {
+                    $data['end'] = $data['due_date'];
+                }
+                unset($data['description']);
+            } elseif ($type == 'members') {
+                if ($data['staff_id'] != 0) {
+                    $tasks = $this->get_tasks($project_id, db_prefix() . 'tasks.id IN (SELECT taskid FROM ' . db_prefix() . 'task_assigned WHERE staffid=' . $data['staff_id'] . ')' . ($taskStatus ? ' AND ' . db_prefix() . 'tasks.status=' . $taskStatus : ''), true);
+                } else {
+                    $tasks = $this->get_tasks($project_id, db_prefix() . 'tasks.id NOT IN (SELECT taskid FROM ' . db_prefix() . 'task_assigned)' . ($taskStatus ? ' AND ' . db_prefix() . 'tasks.status=' . $taskStatus : ''), true);
+                }
+            } else {
+                $tasks = $this->get_tasks($project_id, [
+                    'status' => $data['id'],
+                ], true);
+            }
+
+            if (count($tasks) > 0) {
+                $data['id']           = $data['dep_id'];
+                $data['start']        = $project_data->start_date;
+                $data['end']          = (isset($data['end'])) ? $data['end'] : $project_data->deadline;
+                $data['custom_class'] = 'noDrag';
+                unset($data['dep_id']);
+                $gantt_data[] = $data;
+
+                foreach ($tasks as $task) {
+                    $gantt_data[] = get_task_array_gantt_data($task, $data['id']);
+                }
+            }
+        }
+
+        return $gantt_data;
+    }
+
+    public function get_all_projects_gantt_data($filters = [])
+    {
+        $statuses   = $this->get_project_statuses();
+        $gantt_data = [];
+
+        $statusesIds = [];
+        foreach ($statuses as $status) {
+            if (!in_array($status['id'], $filters['status'])) {
+                continue;
+            }
+
+            if (!has_permission('projects', '', 'view')) {
+                $this->db->where(db_prefix() . 'projects.id IN (SELECT project_id FROM ' . db_prefix() . 'project_members WHERE staff_id=' . get_staff_user_id() . ')');
+            }
+
+            if ($filters['member']) {
+                $this->db->where(db_prefix() . 'projects.id IN (SELECT project_id FROM ' . db_prefix() . 'project_members WHERE staff_id=' . $this->db->escape_str($filters['member']) . ')');
+            }
+
+            $this->db->where('status', $status['id']);
+            $this->db->order_by('deadline IS NULL ASC, deadline', '', false);
+            $projects = $this->db->get(db_prefix() . 'projects')->result_array();
+
+            foreach ($projects as $project) {
+                $tasks = $this->get_tasks($project['id'], [], true);
+
+                $data               = [];
+                $data['id']         = 'proj_' . $project['id'];
+                $data['project_id'] = $project['id'];
+                $data['name']       = $project['name'];
+                $data['progress']   = 0;
+                $data['start']      = strftime('%Y-%m-%d', strtotime($project['start_date']));
+
+                if (!empty($project['deadline'])) {
+                    $data['end'] = strftime('%Y-%m-%d', strtotime($project['deadline']));
+                }
+
+                $data['custom_class'] = 'noDrag';
+                $gantt_data[]         = $data;
+
+                if (count($tasks) > 0) {
+                    foreach ($tasks as $task) {
+                        $task_data                 = get_task_array_gantt_data($task, null, isset($data['end']) ? $data['end'] : null);
+                        $task_data['progress']     = 0;
+                        $task_data['dependencies'] = $data['id'];
+                        $gantt_data[]              = $task_data;
+                    }
+                }
+            }
+        }
+
+        return $gantt_data;
+    }
+
+    public function calc_milestone_logged_time($project_id, $id)
+    {
+        $total = [];
+        $tasks = $this->get_tasks($project_id, [
+            'milestone' => $id,
+        ]);
+
+        foreach ($tasks as $task) {
+            $total[] = $task['total_logged_time'];
+        }
+
+        return array_sum($total);
+    }
+
+    public function total_logged_time($id)
+    {
+        $q = $this->db->query('
+            SELECT SUM(CASE
+                WHEN end_time is NULL THEN ' . time() . '-start_time
+                ELSE end_time-start_time
+                END) as total_logged_time
+            FROM ' . db_prefix() . 'taskstimers
+            WHERE task_id IN (SELECT id FROM ' . db_prefix() . 'tasks WHERE rel_type="project" AND rel_id=' . $this->db->escape_str($id) . ')')
+            ->row();
+
+        return $q->total_logged_time;
+    }
+
+    public function get_milestones($project_id)
+    {
+        $this->db->select('*, (SELECT COUNT(id) FROM ' . db_prefix() . 'tasks WHERE rel_type="project" AND rel_id=' . $this->db->escape_str($project_id) . ' and milestone=' . db_prefix() . 'milestones.id) as total_tasks, (SELECT COUNT(id) FROM ' . db_prefix() . 'tasks WHERE rel_type="project" AND rel_id=' . $this->db->escape_str($project_id) . ' and milestone=' . db_prefix() . 'milestones.id AND status=5) as total_finished_tasks');
+        $this->db->where('project_id', $project_id);
+        $this->db->order_by('milestone_order', 'ASC');
+        $milestones = $this->db->get(db_prefix() . 'milestones')->result_array();
+        $i          = 0;
+        foreach ($milestones as $milestone) {
+            $milestones[$i]['total_logged_time'] = $this->calc_milestone_logged_time($project_id, $milestone['id']);
+            $i++;
+        }
+
+
+        return $milestones;
+    }
+
+    public function add_milestone($data)
+    {
+        $data['due_date']    = to_sql_date($data['due_date']);
+        $data['datecreated'] = date('Y-m-d');
+        $data['description'] = nl2br($data['description']);
+
+        if (isset($data['description_visible_to_customer'])) {
+            $data['description_visible_to_customer'] = 1;
+        } else {
+            $data['description_visible_to_customer'] = 0;
+        }
+        $this->db->insert(db_prefix() . 'milestones', $data);
+        $insert_id = $this->db->insert_id();
+        if ($insert_id) {
+            $this->db->where('id', $insert_id);
+            $milestone = $this->db->get(db_prefix() . 'milestones')->row();
+            $project   = $this->get($milestone->project_id);
+            if ($project->settings->view_milestones == 1) {
+                $show_to_customer = 1;
+            } else {
+                $show_to_customer = 0;
+            }
+            $this->log_activity($milestone->project_id, 'project_activity_created_milestone', $milestone->name, $show_to_customer);
+            log_activity('Project Milestone Created [ID:' . $insert_id . ']');
+
+            return $insert_id;
+        }
+
+        return false;
+    }
+
+    public function update_milestone($data, $id)
+    {
+        $this->db->where('id', $id);
+        $milestone           = $this->db->get(db_prefix() . 'milestones')->row();
+        $data['due_date']    = to_sql_date($data['due_date']);
+        $data['description'] = nl2br($data['description']);
+
+        if (isset($data['description_visible_to_customer'])) {
+            $data['description_visible_to_customer'] = 1;
+        } else {
+            $data['description_visible_to_customer'] = 0;
+        }
+
+        $this->db->where('id', $id);
+        $this->db->update(db_prefix() . 'milestones', $data);
+        if ($this->db->affected_rows() > 0) {
+            $project = $this->get($milestone->project_id);
+            if ($project->settings->view_milestones == 1) {
+                $show_to_customer = 1;
+            } else {
+                $show_to_customer = 0;
+            }
+            $this->log_activity($milestone->project_id, 'project_activity_updated_milestone', $milestone->name, $show_to_customer);
+            log_activity('Project Milestone Updated [ID:' . $id . ']');
+
+            return true;
+        }
+
+        return false;
+    }
+
+    public function update_task_milestone($data)
+    {
+        $this->db->where('id', $data['task_id']);
+        $this->db->update(db_prefix() . 'tasks', [
+            'milestone' => $data['milestone_id'],
+        ]);
+
+        foreach ($data['order'] as $order) {
+            $this->db->where('id', $order[0]);
+            $this->db->update(db_prefix() . 'tasks', [
+                'milestone_order' => $order[1],
+            ]);
+        }
+    }
+
+    public function update_milestones_order($data)
+    {
+        foreach ($data['order'] as $status) {
+            $this->db->where('id', $status[0]);
+            $this->db->update(db_prefix() . 'milestones', [
+                'milestone_order' => $status[1],
+            ]);
+        }
+    }
+
+    public function update_milestone_color($data)
+    {
+        $this->db->where('id', $data['milestone_id']);
+        $this->db->update(db_prefix() . 'milestones', [
+            'color' => $data['color'],
+        ]);
+    }
+
+    public function delete_milestone($id)
+    {
+        $this->db->where('id', $id);
+        $milestone = $this->db->get(db_prefix() . 'milestones')->row();
+        $this->db->where('id', $id);
+        $this->db->delete(db_prefix() . 'milestones');
+        if ($this->db->affected_rows() > 0) {
+            $project = $this->get($milestone->project_id);
+            if ($project->settings->view_milestones == 1) {
+                $show_to_customer = 1;
+            } else {
+                $show_to_customer = 0;
+            }
+            $this->log_activity($milestone->project_id, 'project_activity_deleted_milestone', $milestone->name, $show_to_customer);
+            $this->db->where('milestone', $id);
+            $this->db->update(db_prefix() . 'tasks', [
+                'milestone' => 0,
+            ]);
+            log_activity('Project Milestone Deleted [' . $id . ']');
+
+            return true;
+        }
+
+        return false;
+    }
+
+    public function add($data)
+    {
+        if (isset($data['notify_project_members_status_change'])) {
+            unset($data['notify_project_members_status_change']);
+        }
+        $send_created_email = false;
+        if (isset($data['send_created_email'])) {
+            unset($data['send_created_email']);
+            $send_created_email = true;
+        }
+
+        $send_project_marked_as_finished_email_to_contacts = false;
+        if (isset($data['project_marked_as_finished_email_to_contacts'])) {
+            unset($data['project_marked_as_finished_email_to_contacts']);
+            $send_project_marked_as_finished_email_to_contacts = true;
+        }
+
+        if (isset($data['settings'])) {
+            $project_settings = $data['settings'];
+            unset($data['settings']);
+        }
+        if (isset($data['custom_fields'])) {
+            $custom_fields = $data['custom_fields'];
+            unset($data['custom_fields']);
+        }
+        if (isset($data['progress_from_tasks'])) {
+            $data['progress_from_tasks'] = 1;
+        } else {
+            $data['progress_from_tasks'] = 0;
+        }
+
+        if (isset($data['contact_notification'])) {
+            if ($data['contact_notification'] == 2) {
+                $data['notify_contacts'] = serialize($data['notify_contacts']);
+            } else {
+                $data['notify_contacts'] = serialize([]);
+            }
+        }
+
+        $data['project_cost']    = !empty($data['project_cost']) ? $data['project_cost'] : null;
+        $data['estimated_hours'] = !empty($data['estimated_hours']) ? $data['estimated_hours'] : null;
+
+        $data['start_date'] = to_sql_date($data['start_date']);
+		if (!empty($data['pf_agreement_dt'])) {
+            $data['pf_agreement_dt'] = to_sql_date($data['pf_agreement_dt']);
+        } else {
+            $data['pf_agreement_dt'] = null;
+        }
+		$stageappdt=null;
+		if (!empty($data['current_application_date'])) {
+			$stageappdt= $data['current_application_date'];
+            $data['current_application_date'] = to_sql_date($data['current_application_date']);
+			
+        } else {
+            $data['current_application_date'] = null;
+        }
+        if (!empty($data['ip_filingdt'])) {
+            $data['ip_filingdt'] = to_sql_date($data['ip_filingdt']);
+        } else {
+            $data['ip_filingdt'] = null;
+        }
+
+        if (!empty($data['ip_registrationdt'])) {
+            $data['ip_registrationdt'] = to_sql_date($data['ip_registrationdt']);
+        } else {
+            $data['ip_registrationdt'] = null;
+        }
+        if (!empty($data['deadline'])) {
+            $data['deadline'] = to_sql_date($data['deadline']);
+        } else {
+            unset($data['deadline']);
+        }
+
+        $data['project_created'] = date('Y-m-d');
+        if (isset($data['project_members'])) {
+            $project_members = $data['project_members'];
+            unset($data['project_members']);
+        }
+         if (isset($data['billing_type'])) {
+        if ($data['billing_type'] == 1) {
+            $data['project_rate_per_hour'] = 0;
+        } elseif ($data['billing_type'] == 2) {
+            $data['project_cost'] = 0;
+        } else {
+            $data['project_rate_per_hour'] = 0;
+            $data['project_cost']          = 0;
+        }
+        }
+
+        $data['addedfrom'] = get_staff_user_id();
+
+        
+        $items_to_convert = false;
+        if (isset($data['items'])) {
+            $items_to_convert = $data['items'];
+            $estimate_id = $data['estimate_id'];
+            $items_assignees = $data['items_assignee'];
+            unset($data['items'], $data['estimate_id'], $data['items_assignee']);
+        }
+
+        $data = hooks()->apply_filters('before_add_project', $data);
+
+        $tags = '';
+        if (isset($data['tags'])) {
+            $tags = $data['tags'];
+            unset($data['tags']);
+        }
+		 if(isset($data['additional_party']) && $data['additional_party']!=null){
+		   $data['additional_party'] = json_encode($data['additional_party']); 
+	  } else{
+        unset($data['additional_party']);
+      }
+
+		if(isset($data['additional_client']) && $data['additional_client']!=null){
+		   $data['additional_client'] = json_encode($data['additional_client']); 
+	  }else{
+        unset($data['additional_client']);
+      }
+        $this->db->insert(db_prefix() . 'projects', $data);
+        $insert_id = $this->db->insert_id();
+        if ($insert_id) {
+            handle_tags_save($tags, $insert_id, 'project');
+			$fileno=str_pad($insert_id, get_option('file_padding_prefix'), '0', STR_PAD_LEFT);
+            $this->db->where('id', $insert_id);
+            $this->db->set('file_no', get_option('file_no_prefix').$fileno);
+            $this->db->update('tblprojects');
+            if(isset($data['project_stage']) && !empty($data['project_stage'])){
+			  //Update to Case Stage
+			$stagedata=[];
+			$stagedata['project_id']=$insert_id;
+			//$stagedata['stage_applicationno']=$data['application_number'];
+			$stagedata['stage_requestno']=$data['current_application_no'];
+			$stagedata['stage_applicationdt']=$data['current_application_date'];
+			//$stagedata['lawyer_id']=$data['caselawyer_id'];
+			$stagedata['stage_registrationdt']=$data['start_date'];
+			//$stagedata['stage_advertisedt']=$data['advertise_case'];
+			//$stagedata['stage_advertisecase']=$data['advertise_date'];
+			$stagedata['instance_id']=$data['project_stage'];
+			$this->casediary_model->add_case_details_data($stagedata);
+			}
+            // Template
+
+            if (isset($data['template_id'])&& !empty($data['template_id'])) {
+                // Copy scope from template to this  matter
+                template_data_transfer($insert_id,$data['template_id']);
+
+            }
+            if (isset($custom_fields)) {
+                handle_custom_fields_post($insert_id, $custom_fields);
+            }
+
+            if (isset($project_members)) {
+                $_pm['project_members'] = $project_members;
+                $this->add_edit_members($_pm, $insert_id);
+            }
+
+            $original_settings = $this->get_settings();
+            if (isset($project_settings)) {
+                $_settings = [];
+                $_values   = [];
+                foreach ($project_settings as $name => $val) {
+                    array_push($_settings, $name);
+                    $_values[$name] = $val;
+                }
+                foreach ($original_settings as $setting) {
+                    if ($setting != 'available_features') {
+                        if (in_array($setting, $_settings)) {
+                            $value_setting = 1;
+                        } else {
+                            $value_setting = 0;
+                        }
+                    } else {
+                        $tabs         = get_project_tabs_admin();
+                        $tab_settings = [];
+                        foreach ($_values[$setting] as $tab) {
+                            $tab_settings[$tab] = 1;
+                        }
+                        foreach ($tabs as $tab) {
+                            if (!isset($tab['collapse'])) {
+                                if (!in_array($tab['slug'], $_values[$setting])) {
+                                    $tab_settings[$tab['slug']] = 0;
+                                }
+                            } else {
+                                foreach ($tab['children'] as $tab_dropdown) {
+                                    if (!in_array($tab_dropdown['slug'], $_values[$setting])) {
+                                        $tab_settings[$tab_dropdown['slug']] = 0;
+                                    }
+                                }
+                            }
+                        }
+                        $value_setting = serialize($tab_settings);
+                    }
+                    $this->db->insert(db_prefix() . 'project_settings', [
+                        'project_id' => $insert_id,
+                        'name'       => $setting,
+                        'value'      => $value_setting,
+                    ]);
+                }
+            } else {
+                foreach ($original_settings as $setting) {
+                    $value_setting = 0;
+                    $this->db->insert(db_prefix() . 'project_settings', [
+                        'project_id' => $insert_id,
+                        'name'       => $setting,
+                        'value'      => $value_setting,
+                    ]);
+                }
+            }
+
+            if ($items_to_convert && is_numeric($estimate_id)) {
+                $this->convert_estimate_items_to_tasks($insert_id, $items_to_convert, $items_assignees, $data, $project_settings);
+
+                $this->db->where('id', $estimate_id);
+                $this->db->set('project_id', $insert_id);
+                $this->db->update(db_prefix() . 'estimates');
+            }
+
+            $this->log_activity($insert_id, 'project_activity_created');
+
+            if ($send_created_email == true) {
+                $this->send_project_customer_email($insert_id, 'project_created_to_customer');
+            }
+
+            if ($send_project_marked_as_finished_email_to_contacts == true) {
+                $this->send_project_customer_email($insert_id, 'project_marked_as_finished_to_customer');
+            }
+
+            hooks()->do_action('after_add_project', $insert_id);
+
+            log_activity('New Project Created [ID: ' . $insert_id . ']');
+
+            return $insert_id;
+        }
+
+        return false;
+    }
+
+    public function update($data, $id)
+    {
+        $this->db->select('status');
+        $this->db->where('id', $id);
+        $old_status = $this->db->get(db_prefix() . 'projects')->row()->status;
+
+        $send_created_email = false;
+        if (isset($data['send_created_email'])) {
+            unset($data['send_created_email']);
+            $send_created_email = true;
+        }
+
+        $send_project_marked_as_finished_email_to_contacts = false;
+        if (isset($data['project_marked_as_finished_email_to_contacts'])) {
+            unset($data['project_marked_as_finished_email_to_contacts']);
+            $send_project_marked_as_finished_email_to_contacts = true;
+        }
+
+        $original_project = $this->get($id);
+
+        if (isset($data['notify_project_members_status_change'])) {
+            $notify_project_members_status_change = true;
+            unset($data['notify_project_members_status_change']);
+        }
+        $affectedRows = 0;
+        if (!isset($data['settings'])) {
+            $this->db->where('project_id', $id);
+            $this->db->update(db_prefix() . 'project_settings', [
+                'value' => 0,
+            ]);
+            if ($this->db->affected_rows() > 0) {
+                $affectedRows++;
+            }
+        } else {
+            $_settings = [];
+            $_values   = [];
+
+            foreach ($data['settings'] as $name => $val) {
+                array_push($_settings, $name);
+                $_values[$name] = $val;
+            }
+
+            unset($data['settings']);
+            $original_settings = $this->get_project_settings($id);
+
+            foreach ($original_settings as $setting) {
+                if ($setting['name'] != 'available_features') {
+                    if (in_array($setting['name'], $_settings)) {
+                        $value_setting = 1;
+                    } else {
+                        $value_setting = 0;
+                    }
+                } else {
+                    $tabs         = get_project_tabs_admin();
+                    $tab_settings = [];
+                    foreach ($_values[$setting['name']] as $tab) {
+                        $tab_settings[$tab] = 1;
+                    }
+                    foreach ($tabs as $tab) {
+                        if (!isset($tab['collapse'])) {
+                            if (!in_array($tab['slug'], $_values[$setting['name']])) {
+                                $tab_settings[$tab['slug']] = 0;
+                            }
+                        } else {
+                            foreach ($tab['children'] as $tab_dropdown) {
+                                if (!in_array($tab_dropdown['slug'], $_values[$setting['name']])) {
+                                    $tab_settings[$tab_dropdown['slug']] = 0;
+                                }
+                            }
+                        }
+                    }
+                    $value_setting = serialize($tab_settings);
+                }
+
+                $this->db->where('project_id', $id);
+                $this->db->where('name', $setting['name']);
+                $this->db->update(db_prefix() . 'project_settings', [
+                    'value' => $value_setting,
+                ]);
+
+                if ($this->db->affected_rows() > 0) {
+                    $affectedRows++;
+                }
+            }
+        }
+
+        $data['project_cost']    = !empty($data['project_cost']) ? $data['project_cost'] : null;
+        $data['estimated_hours'] = !empty($data['estimated_hours']) ? $data['estimated_hours'] : null;
+
+        if ($old_status == 4 && $data['status'] != 4) {
+            $data['date_finished'] = null;
+        } elseif (isset($data['date_finished'])) {
+            $data['date_finished'] = to_sql_date($data['date_finished'], true);
+        }
+
+        if (isset($data['progress_from_tasks'])) {
+            $data['progress_from_tasks'] = 1;
+        } else {
+            $data['progress_from_tasks'] = 0;
+        }
+
+        if (isset($data['custom_fields'])) {
+            $custom_fields = $data['custom_fields'];
+            if (handle_custom_fields_post($id, $custom_fields)) {
+                $affectedRows++;
+            }
+            unset($data['custom_fields']);
+        }
+
+        if (!empty($data['deadline'])) {
+            $data['deadline'] = to_sql_date($data['deadline']);
+        } else {
+            $data['deadline'] = null;
+        }
+
+        $data['start_date'] = to_sql_date($data['start_date']);
+		 if (!empty($data['pf_agreement_dt'])) {
+            $data['pf_agreement_dt'] = to_sql_date($data['pf_agreement_dt']);
+        } else {
+            $data['pf_agreement_dt'] = null;
+        }
+		if (!empty($data['current_application_date'])) {
+            $data['current_application_date'] = to_sql_date($data['current_application_date']);
+        } else {
+            $data['current_application_date'] = null;
+        }
+        if ($data['billing_type'] == 1) {
+            $data['project_rate_per_hour'] = 0;
+        } elseif ($data['billing_type'] == 2) {
+            $data['project_cost'] = 0;
+        } else {
+            $data['project_rate_per_hour'] = 0;
+            $data['project_cost']          = 0;
+        }
+        if (isset($data['project_members'])) {
+            $project_members = $data['project_members'];
+            unset($data['project_members']);
+        }
+        $_pm = [];
+        if (isset($project_members)) {
+            $_pm['project_members'] = $project_members;
+        }
+        if ($this->add_edit_members($_pm, $id)) {
+            $affectedRows++;
+        }
+        if (!empty($data['ip_filingdt'])) {
+            $data['ip_filingdt'] = to_sql_date($data['ip_filingdt']);
+        } else {
+            $data['ip_filingdt'] = null;
+        }
+        
+        if (!empty($data['ip_registrationdt'])) {
+            $data['ip_registrationdt'] = to_sql_date($data['ip_registrationdt']);
+        } else {
+            $data['ip_registrationdt'] = null;
+        }
+        if (isset($data['mark_all_tasks_as_completed'])) {
+            $mark_all_tasks_as_completed = true;
+            unset($data['mark_all_tasks_as_completed']);
+        }
+
+        if (isset($data['tags'])) {
+            if (handle_tags_save($data['tags'], $id, 'project')) {
+                $affectedRows++;
+            }
+            unset($data['tags']);
+        }
+		 if(isset($data['additional_party']) && $data['additional_party']!=null){
+		   $data['additional_party'] = json_encode($data['additional_party']); 
+	  } else{
+        unset($data['additional_party']);
+      }
+
+		if(isset($data['additional_client']) && $data['additional_client']!=null){
+		   $data['additional_client'] = json_encode($data['additional_client']); 
+	  }else{
+        unset($data['additional_client']);
+      }
+        if (isset($data['cancel_recurring_tasks'])) {
+            unset($data['cancel_recurring_tasks']);
+            $this->cancel_recurring_tasks($id);
+        }
+
+        if (isset($data['contact_notification'])) {
+            if ($data['contact_notification'] == 2) {
+                $data['notify_contacts'] = serialize($data['notify_contacts']);
+            } else {
+                $data['notify_contacts'] = serialize([]);
+            }
+        }
+
+        $data = hooks()->apply_filters('before_update_project', $data, $id);
+
+        $this->db->where('id', $id);
+        $this->db->update(db_prefix() . 'projects', $data);
+
+        if ($this->db->affected_rows() > 0) {
+            if (isset($mark_all_tasks_as_completed)) {
+                $this->_mark_all_project_tasks_as_completed($id);
+            }
+            $affectedRows++;
+        }
+
+        if ($send_created_email == true) {
+            if ($this->send_project_customer_email($id, 'project_created_to_customer')) {
+                $affectedRows++;
+            }
+        }
+
+        if ($send_project_marked_as_finished_email_to_contacts == true) {
+            if ($this->send_project_customer_email($id, 'project_marked_as_finished_to_customer')) {
+                $affectedRows++;
+            }
+        }
+        if ($affectedRows > 0) {
+            $this->log_activity($id, 'project_activity_updated');
+            log_activity('Project Updated [ID: ' . $id . ']');
+
+            if ($original_project->status != $data['status']) {
+                hooks()->do_action('project_status_changed', [
+                    'status'     => $data['status'],
+                    'project_id' => $id,
+                ]);
+                // Give space this log to be on top
+                sleep(1);
+                if ($data['status'] == 4) {
+                    $this->log_activity($id, 'project_marked_as_finished');
+                    $this->db->where('id', $id);
+                    $this->db->update(db_prefix() . 'projects', ['date_finished' => date('Y-m-d H:i:s')]);
+                } else {
+                    $this->log_activity($id, 'project_status_updated', '<b><lang>project_status_' . $data['status'] . '</lang></b>');
+                }
+
+                if (isset($notify_project_members_status_change)) {
+                    $this->_notify_project_members_status_change($id, $original_project->status, $data['status']);
+                }
+            }
+            hooks()->do_action('after_update_project', $id);
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Simplified function to send non complicated email templates for project contacts
+     * @param  mixed $id project id
+     * @return boolean
+     */
+    public function send_project_customer_email($id, $template)
+    {
+        $this->db->select('clientid,contact_notification,notify_contacts');
+        $this->db->where('id', $id);
+        $project = $this->db->get(db_prefix() . 'projects')->row();
+
+        $sent     = false;
+
+        if ($project->contact_notification == 1) {
+            $contacts = $this->clients_model->get_contacts($project->clientid, ['active' => 1, 'project_emails' => 1]);
+        } elseif ($project->contact_notification == 2) {
+            $contacts = [];
+            $contactIds = unserialize($project->notify_contacts);
+            if(count($contactIds) > 0){
+                $this->db->where_in('id', $contactIds);
+                $this->db->where('active', 1);
+                $contacts = $this->db->get(db_prefix() . 'contacts')->result_array();
+            }
+        } else {
+            $contacts = [];
+        }
+
+        foreach ($contacts as $contact) {
+            if (send_mail_template($template, $id, $project->clientid, $contact)) {
+                $sent = true;
+            }
+        }
+
+        return $sent;
+    }
+
+    public function mark_as($data)
+    {
+        $this->db->select('status');
+        $this->db->where('id', $data['project_id']);
+        $old_status = $this->db->get(db_prefix() . 'projects')->row()->status;
+
+        $this->db->where('id', $data['project_id']);
+        $this->db->update(db_prefix() . 'projects', [
+            'status' => $data['status_id'],
+        ]);
+        if ($this->db->affected_rows() > 0) {
+            hooks()->do_action('project_status_changed', [
+                'status'     => $data['status_id'],
+                'project_id' => $data['project_id'],
+            ]);
+
+
+            if ($data['status_id'] == 4) {
+                $this->log_activity($data['project_id'], 'project_marked_as_finished');
+                $this->db->where('id', $data['project_id']);
+                $this->db->update(db_prefix() . 'projects', ['date_finished' => date('Y-m-d H:i:s')]);
+            } else {
+                $this->log_activity($data['project_id'], 'project_status_updated', '<b><lang>project_status_' . $data['status_id'] . '</lang></b>');
+                if ($old_status == 4) {
+                    $this->db->update(db_prefix() . 'projects', ['date_finished' => null]);
+                }
+            }
+
+            if ($data['notify_project_members_status_change'] == 1) {
+                $this->_notify_project_members_status_change($data['project_id'], $old_status, $data['status_id']);
+            }
+
+            if ($data['mark_all_tasks_as_completed'] == 1) {
+                $this->_mark_all_project_tasks_as_completed($data['project_id']);
+            }
+
+            if (isset($data['cancel_recurring_tasks']) && $data['cancel_recurring_tasks'] == 'true') {
+                $this->cancel_recurring_tasks($data['project_id']);
+            }
+
+            if (
+                isset($data['send_project_marked_as_finished_email_to_contacts'])
+                && $data['send_project_marked_as_finished_email_to_contacts'] == 1
+            ) {
+                $this->send_project_customer_email($data['project_id'], 'project_marked_as_finished_to_customer');
+            }
+
+            return true;
+        }
+
+
+        return false;
+    }
+
+    private function _notify_project_members_status_change($id, $old_status, $new_status)
+    {
+        $members       = $this->get_project_members($id);
+        $notifiedUsers = [];
+        foreach ($members as $member) {
+            if ($member['staff_id'] != get_staff_user_id()) {
+                $notified = add_notification([
+                    'fromuserid'      => get_staff_user_id(),
+                    'description'     => 'not_project_status_updated',
+                    'link'            => 'projects/view/' . $id,
+                    'touserid'        => $member['staff_id'],
+                    'additional_data' => serialize([
+                        '<lang>project_status_' . $old_status . '</lang>',
+                        '<lang>project_status_' . $new_status . '</lang>',
+                    ]),
+                ]);
+                if ($notified) {
+                    array_push($notifiedUsers, $member['staff_id']);
+                }
+            }
+				send_mail_template('project_status_changed_to_member',$member['email'], $member['staff_id'], $id);
+        }
+        pusher_trigger_notification($notifiedUsers);
+    }
+
+    private function _mark_all_project_tasks_as_completed($id)
+    {
+        $this->db->where('rel_type', 'project');
+        $this->db->where('rel_id', $id);
+        $this->db->update(db_prefix() . 'tasks', [
+            'status'       => 5,
+            'datefinished' => date('Y-m-d H:i:s'),
+        ]);
+        $tasks = $this->get_tasks($id);
+        foreach ($tasks as $task) {
+            $this->db->where('task_id', $task['id']);
+            $this->db->where('end_time IS NULL');
+            $this->db->update(db_prefix() . 'taskstimers', [
+                'end_time' => time(),
+            ]);
+        }
+        $this->log_activity($id, 'project_activity_marked_all_tasks_as_complete');
+    }
+
+    public function add_edit_members($data, $id)
+    {
+        $affectedRows = 0;
+        if (isset($data['project_members'])) {
+            $project_members = $data['project_members'];
+        }
+
+        $new_project_members_to_receive_email = [];
+        $this->db->select('name,clientid');
+        $this->db->where('id', $id);
+        $project      = $this->db->get(db_prefix() . 'projects')->row();
+        $project_name = $project->name;
+        $client_id    = $project->clientid;
+
+        $project_members_in = $this->get_project_members($id);
+        if (sizeof($project_members_in) > 0) {
+            foreach ($project_members_in as $project_member) {
+                if (isset($project_members)) {
+                    if (!in_array($project_member['staff_id'], $project_members)) {
+                        $this->db->where('project_id', $id);
+                        $this->db->where('staff_id', $project_member['staff_id']);
+                        $this->db->delete(db_prefix() . 'project_members');
+                        if ($this->db->affected_rows() > 0) {
+                            $this->db->where('staff_id', $project_member['staff_id']);
+                            $this->db->where('project_id', $id);
+                            $this->db->delete(db_prefix() . 'pinned_projects');
+
+                            $this->log_activity($id, 'project_activity_removed_team_member', get_staff_full_name($project_member['staff_id']));
+                            $affectedRows++;
+                        }
+                    }
+                } else {
+                    $this->db->where('project_id', $id);
+                    $this->db->delete(db_prefix() . 'project_members');
+                    if ($this->db->affected_rows() > 0) {
+                        $affectedRows++;
+                    }
+                }
+            }
+            if (isset($project_members)) {
+                $notifiedUsers = [];
+                foreach ($project_members as $staff_id) {
+                    $this->db->where('project_id', $id);
+                    $this->db->where('staff_id', $staff_id);
+                    $_exists = $this->db->get(db_prefix() . 'project_members')->row();
+                    if (!$_exists) {
+                        if (empty($staff_id)) {
+                            continue;
+                        }
+                        $this->db->insert(db_prefix() . 'project_members', [
+                            'project_id' => $id,
+                            'staff_id'   => $staff_id,
+                        ]);
+                        if ($this->db->affected_rows() > 0) {
+                            if ($staff_id != get_staff_user_id()) {
+                                $notified = add_notification([
+                                    'fromuserid'      => get_staff_user_id(),
+                                    'description'     => 'not_staff_added_as_project_member',
+                                    'link'            => 'projects/view/' . $id,
+                                    'touserid'        => $staff_id,
+                                    'additional_data' => serialize([
+                                        $project_name,
+                                    ]),
+                                ]);
+                                array_push($new_project_members_to_receive_email, $staff_id);
+                                if ($notified) {
+                                    array_push($notifiedUsers, $staff_id);
+                                }
+                            }
+
+
+                            $this->log_activity($id, 'project_activity_added_team_member', get_staff_full_name($staff_id));
+                            $affectedRows++;
+                        }
+                    }
+                }
+                pusher_trigger_notification($notifiedUsers);
+            }
+        } else {
+            if (isset($project_members)) {
+                $notifiedUsers = [];
+                foreach ($project_members as $staff_id) {
+                    if (empty($staff_id)) {
+                        continue;
+                    }
+                    $this->db->insert(db_prefix() . 'project_members', [
+                        'project_id' => $id,
+                        'staff_id'   => $staff_id,
+                    ]);
+                    if ($this->db->affected_rows() > 0) {
+                        if ($staff_id != get_staff_user_id()) {
+                            $notified = add_notification([
+                                'fromuserid'      => get_staff_user_id(),
+                                'description'     => 'not_staff_added_as_project_member',
+                                'link'            => 'projects/view/' . $id,
+                                'touserid'        => $staff_id,
+                                'additional_data' => serialize([
+                                    $project_name,
+                                ]),
+                            ]);
+                            array_push($new_project_members_to_receive_email, $staff_id);
+                            if ($notifiedUsers) {
+                                array_push($notifiedUsers, $staff_id);
+                            }
+                        }
+                        $this->log_activity($id, 'project_activity_added_team_member', get_staff_full_name($staff_id));
+                        $affectedRows++;
+                    }
+                }
+                pusher_trigger_notification($notifiedUsers);
+            }
+        }
+
+        if (count($new_project_members_to_receive_email) > 0) {
+            $all_members = $this->get_project_members($id);
+            foreach ($all_members as $data) {
+                if (in_array($data['staff_id'], $new_project_members_to_receive_email)) {
+                    send_mail_template('project_staff_added_as_member', $data, $id, $client_id);
+                }
+            }
+        }
+        if ($affectedRows > 0) {
+            return true;
+        }
+
+        return false;
+    }
+
+    public function is_member($project_id, $staff_id = '')
+    {
+        if (!is_numeric($staff_id)) {
+            $staff_id = get_staff_user_id();
+        }
+        $member = total_rows(db_prefix() . 'project_members', [
+            'staff_id'   => $staff_id,
+            'project_id' => $project_id,
+        ]);
+        if ($member > 0) {
+            return true;
+        }
+
+        return false;
+    }
+
+    public function get_projects_for_ticket($client_id)
+    {
+        return $this->get('', [
+            'clientid' => $client_id,
+        ]);
+    }
+
+    public function get_project_settings($project_id)
+    {
+        $this->db->where('project_id', $project_id);
+
+        return $this->db->get(db_prefix() . 'project_settings')->result_array();
+    }
+
+    public function get_project_members($id)
+    {
+        $this->db->select('email,project_id,staff_id');
+        $this->db->join(db_prefix() . 'staff', db_prefix() . 'staff.staffid=' . db_prefix() . 'project_members.staff_id');
+        $this->db->where('project_id', $id);
+
+        return $this->db->get(db_prefix() . 'project_members')->result_array();
+    }
+
+    public function remove_team_member($project_id, $staff_id)
+    {
+        $this->db->where('project_id', $project_id);
+        $this->db->where('staff_id', $staff_id);
+        $this->db->delete(db_prefix() . 'project_members');
+        if ($this->db->affected_rows() > 0) {
+
+            // Remove member from tasks where is assigned
+            $this->db->where('staffid', $staff_id);
+            $this->db->where('taskid IN (SELECT id FROM ' . db_prefix() . 'tasks WHERE rel_type="project" AND rel_id="' . $this->db->escape_str($project_id) . '")');
+            $this->db->delete(db_prefix() . 'task_assigned');
+
+            $this->log_activity($project_id, 'project_activity_removed_team_member', get_staff_full_name($staff_id));
+
+            return true;
+        }
+
+        return false;
+    }
+
+    public function get_timesheets($project_id, $tasks_ids = [])
+    {
+        if (count($tasks_ids) == 0) {
+            $tasks     = $this->get_tasks($project_id);
+            $tasks_ids = [];
+            foreach ($tasks as $task) {
+                array_push($tasks_ids, $task['id']);
+            }
+        }
+        if (count($tasks_ids) > 0) {
+            $this->db->where('task_id IN(' . implode(', ', $tasks_ids) . ')');
+            $timesheets = $this->db->get(db_prefix() . 'taskstimers')->result_array();
+            $i          = 0;
+            foreach ($timesheets as $t) {
+                $task                         = $this->tasks_model->get($t['task_id']);
+                $timesheets[$i]['task_data']  = $task;
+                $timesheets[$i]['staff_name'] = get_staff_full_name($t['staff_id']);
+                if (!is_null($t['end_time'])) {
+                    $timesheets[$i]['total_spent'] = $t['end_time'] - $t['start_time'];
+                } else {
+                    $timesheets[$i]['total_spent'] = time() - $t['start_time'];
+                }
+                $i++;
+            }
+
+            return $timesheets;
+        }
+
+        return [];
+    }
+
+    public function get_discussion($id, $project_id = '')
+    {
+        if ($project_id != '') {
+            $this->db->where('project_id', $project_id);
+        }
+        $this->db->where('id', $id);
+        if (is_client_logged_in()) {
+            $this->db->where('show_to_customer', 1);
+            $this->db->where('project_id IN (SELECT id FROM ' . db_prefix() . 'projects WHERE clientid=' . get_client_user_id() . ')');
+        }
+        $discussion = $this->db->get(db_prefix() . 'projectdiscussions')->row();
+        if ($discussion) {
+            return $discussion;
+        }
+
+        return false;
+    }
+
+    public function get_discussion_comment($id)
+    {
+        $this->db->where('id', $id);
+        $comment = $this->db->get(db_prefix() . 'projectdiscussioncomments')->row();
+        if ($comment->contact_id != 0) {
+            if (is_client_logged_in()) {
+                if ($comment->contact_id == get_contact_user_id()) {
+                    $comment->created_by_current_user = true;
+                } else {
+                    $comment->created_by_current_user = false;
+                }
+            } else {
+                $comment->created_by_current_user = false;
+            }
+            $comment->profile_picture_url = contact_profile_image_url($comment->contact_id);
+        } else {
+            if (is_client_logged_in()) {
+                $comment->created_by_current_user = false;
+            } else {
+                if (is_staff_logged_in()) {
+                    if ($comment->staff_id == get_staff_user_id()) {
+                        $comment->created_by_current_user = true;
+                    } else {
+                        $comment->created_by_current_user = false;
+                    }
+                } else {
+                    $comment->created_by_current_user = false;
+                }
+            }
+            if (is_admin($comment->staff_id)) {
+                $comment->created_by_admin = true;
+            } else {
+                $comment->created_by_admin = false;
+            }
+            $comment->profile_picture_url = staff_profile_image_url($comment->staff_id);
+        }
+        $comment->created = (strtotime($comment->created) * 1000);
+        if (!empty($comment->modified)) {
+            $comment->modified = (strtotime($comment->modified) * 1000);
+        }
+        if (!is_null($comment->file_name)) {
+            $comment->file_url = site_url('uploads/discussions/' . $comment->discussion_id . '/' . $comment->file_name);
+        }
+
+        return $comment;
+    }
+
+    public function get_discussion_comments($id, $type)
+    {
+        $this->db->where('discussion_id', $id);
+        $this->db->where('discussion_type', $type);
+        $comments             = $this->db->get(db_prefix() . 'projectdiscussioncomments')->result_array();
+        $i                    = 0;
+        $allCommentsIDS       = [];
+        $allCommentsParentIDS = [];
+        foreach ($comments as $comment) {
+            $allCommentsIDS[] = $comment['id'];
+            if (!empty($comment['parent'])) {
+                $allCommentsParentIDS[] = $comment['parent'];
+            }
+
+            if ($comment['contact_id'] != 0) {
+                if (is_client_logged_in()) {
+                    if ($comment['contact_id'] == get_contact_user_id()) {
+                        $comments[$i]['created_by_current_user'] = true;
+                    } else {
+                        $comments[$i]['created_by_current_user'] = false;
+                    }
+                } else {
+                    $comments[$i]['created_by_current_user'] = false;
+                }
+                $comments[$i]['profile_picture_url'] = contact_profile_image_url($comment['contact_id']);
+            } else {
+                if (is_client_logged_in()) {
+                    $comments[$i]['created_by_current_user'] = false;
+                } else {
+                    if (is_staff_logged_in()) {
+                        if ($comment['staff_id'] == get_staff_user_id()) {
+                            $comments[$i]['created_by_current_user'] = true;
+                        } else {
+                            $comments[$i]['created_by_current_user'] = false;
+                        }
+                    } else {
+                        $comments[$i]['created_by_current_user'] = false;
+                    }
+                }
+                if (is_admin($comment['staff_id'])) {
+                    $comments[$i]['created_by_admin'] = true;
+                } else {
+                    $comments[$i]['created_by_admin'] = false;
+                }
+                $comments[$i]['profile_picture_url'] = staff_profile_image_url($comment['staff_id']);
+            }
+            if (!is_null($comment['file_name'])) {
+                $comments[$i]['file_url'] = site_url('uploads/discussions/' . $id . '/' . $comment['file_name']);
+            }
+            $comments[$i]['created'] = (strtotime($comment['created']) * 1000);
+            if (!empty($comment['modified'])) {
+                $comments[$i]['modified'] = (strtotime($comment['modified']) * 1000);
+            }
+            $i++;
+        }
+
+        // Ticket #5471
+        foreach ($allCommentsParentIDS as $parent_id) {
+            if (!in_array($parent_id, $allCommentsIDS)) {
+                foreach ($comments as $key => $comment) {
+                    if ($comment['parent'] == $parent_id) {
+                        $comments[$key]['parent'] = null;
+                    }
+                }
+            }
+        }
+
+        return $comments;
+    }
+
+    public function get_discussions($project_id)
+    {
+        $this->db->where('project_id', $project_id);
+        if (is_client_logged_in()) {
+            $this->db->where('show_to_customer', 1);
+        }
+        $discussions = $this->db->get(db_prefix() . 'projectdiscussions')->result_array();
+        $i           = 0;
+        foreach ($discussions as $discussion) {
+            $discussions[$i]['total_comments'] = total_rows(db_prefix() . 'projectdiscussioncomments', [
+                'discussion_id'   => $discussion['id'],
+                'discussion_type' => 'regular',
+            ]);
+            $i++;
+        }
+
+        return $discussions;
+    }
+
+    public function add_discussion_comment($data, $discussion_id, $type)
+    {
+        $discussion               = $this->get_discussion($discussion_id);
+        $_data['discussion_id']   = $discussion_id;
+        $_data['discussion_type'] = $type;
+        if (isset($data['content'])) {
+            $_data['content'] = $data['content'];
+        }
+        if (isset($data['parent']) && $data['parent'] != null) {
+            $_data['parent'] = $data['parent'];
+        }
+        if (is_client_logged_in()) {
+            $_data['contact_id'] = get_contact_user_id();
+            $_data['fullname']   = get_contact_full_name($_data['contact_id']);
+            $_data['staff_id']   = 0;
+        } else {
+            $_data['contact_id'] = 0;
+            $_data['staff_id']   = get_staff_user_id();
+            $_data['fullname']   = get_staff_full_name($_data['staff_id']);
+        }
+        $_data = handle_project_discussion_comment_attachments($discussion_id, $data, $_data);
+
+        $_data['created'] = date('Y-m-d H:i:s');
+
+        $_data = hooks()->apply_filters('before_add_project_discussion_comment', $_data, $discussion_id);
+
+        $this->db->insert(db_prefix() . 'projectdiscussioncomments', $_data);
+        $insert_id = $this->db->insert_id();
+        if ($insert_id) {
+            if ($type == 'regular') {
+                $discussion = $this->get_discussion($discussion_id);
+                $not_link   = 'projects/view/' . $discussion->project_id . '?group=project_discussions&discussion_id=' . $discussion_id;
+            } else {
+                $discussion                   = $this->get_file($discussion_id);
+                $not_link                     = 'projects/view/' . $discussion->project_id . '?group=project_files&file_id=' . $discussion_id;
+                $discussion->show_to_customer = $discussion->visible_to_customer;
+            }
+
+            $emailTemplateData = [
+                'staff' => [
+                    'discussion_id'         => $discussion_id,
+                    'discussion_comment_id' => $insert_id,
+                    'discussion_type'       => $type,
+                ],
+                'customers' => [
+                    'customer_template'     => true,
+                    'discussion_id'         => $discussion_id,
+                    'discussion_comment_id' => $insert_id,
+                    'discussion_type'       => $type,
+                ],
+            ];
+
+            if (isset($_data['file_name'])) {
+                $emailTemplateData['attachments'] = [
+                    [
+                        'attachment' => PROJECT_DISCUSSION_ATTACHMENT_FOLDER . $discussion_id . '/' . $_data['file_name'],
+                        'filename'   => $_data['file_name'],
+                        'type'       => $_data['file_mime_type'],
+                        'read'       => true,
+                    ],
+                ];
+            }
+
+            $notification_data = [
+                'description' => 'not_commented_on_project_discussion',
+                'link'        => $not_link,
+            ];
+
+            if (is_client_logged_in()) {
+                $notification_data['fromclientid'] = get_contact_user_id();
+            } else {
+                $notification_data['fromuserid'] = get_staff_user_id();
+            }
+            $notifiedUsers = [];
+
+            $regex = "/data\-mention\-id\=\"(\d+)\"/";
+            if (isset($data['content']) && preg_match_all($regex, $data['content'], $mentionedStaff, PREG_PATTERN_ORDER)) {
+                $members = array_unique($mentionedStaff[1], SORT_NUMERIC);
+                $this->send_project_email_mentioned_users($discussion->project_id, 'project_new_discussion_comment_to_staff', $members, $emailTemplateData);
+
+                foreach ($members as $memberId) {
+                    if ($memberId == get_staff_user_id() && !is_client_logged_in()) {
+                        continue;
+                    }
+
+                    $notification_data['touserid'] = $memberId;
+                    if (add_notification($notification_data)) {
+                        array_push($notifiedUsers, $memberId);
+                    }
+                }
+            } else {
+                $this->send_project_email_template($discussion->project_id, 'project_new_discussion_comment_to_staff', 'project_new_discussion_comment_to_customer', $discussion->show_to_customer, $emailTemplateData);
+
+                $members = $this->get_project_members($discussion->project_id);
+                foreach ($members as $member) {
+                    if ($member['staff_id'] == get_staff_user_id() && !is_client_logged_in()) {
+                        continue;
+                    }
+                    $notification_data['touserid'] = $member['staff_id'];
+                    if (add_notification($notification_data)) {
+                        array_push($notifiedUsers, $member['staff_id']);
+                    }
+                }
+            }
+
+            $this->log_activity($discussion->project_id, 'project_activity_commented_on_discussion', $discussion->subject, $discussion->show_to_customer);
+
+            pusher_trigger_notification($notifiedUsers);
+
+            $this->_update_discussion_last_activity($discussion_id, $type);
+
+            hooks()->do_action('after_add_discussion_comment', $insert_id);
+
+            return $this->get_discussion_comment($insert_id);
+        }
+
+        return false;
+    }
+
+    public function update_discussion_comment($data)
+    {
+        $comment = $this->get_discussion_comment($data['id']);
+        $this->db->where('id', $data['id']);
+        $this->db->update(db_prefix() . 'projectdiscussioncomments', [
+            'modified' => date('Y-m-d H:i:s'),
+            'content'  => $data['content'],
+        ]);
+        if ($this->db->affected_rows() > 0) {
+            $this->_update_discussion_last_activity($comment->discussion_id, $comment->discussion_type);
+        }
+
+        return $this->get_discussion_comment($data['id']);
+    }
+
+    public function delete_discussion_comment($id, $logActivity = true)
+    {
+        $comment = $this->get_discussion_comment($id);
+        $this->db->where('id', $id);
+        $this->db->delete(db_prefix() . 'projectdiscussioncomments');
+        if ($this->db->affected_rows() > 0) {
+            $this->delete_discussion_comment_attachment($comment->file_name, $comment->discussion_id);
+            if ($logActivity) {
+                $additional_data = '';
+                if ($comment->discussion_type == 'regular') {
+                    $discussion = $this->get_discussion($comment->discussion_id);
+                    $not        = 'project_activity_deleted_discussion_comment';
+                    $additional_data .= $discussion->subject . '<br />' . $comment->content;
+                } else {
+                    $discussion = $this->get_file($comment->discussion_id);
+                    $not        = 'project_activity_deleted_file_discussion_comment';
+                    $additional_data .= $discussion->subject . '<br />' . $comment->content;
+                }
+
+                if (!is_null($comment->file_name)) {
+                    $additional_data .= $comment->file_name;
+                }
+
+                $this->log_activity($discussion->project_id, $not, $additional_data);
+            }
+        }
+
+        $this->db->where('parent', $id);
+        $this->db->update(db_prefix() . 'projectdiscussioncomments', [
+            'parent' => null,
+        ]);
+
+        if ($this->db->affected_rows() > 0 && $logActivity) {
+            $this->_update_discussion_last_activity($comment->discussion_id, $comment->discussion_type);
+        }
+
+        return true;
+    }
+
+    public function delete_discussion_comment_attachment($file_name, $discussion_id)
+    {
+        $path = PROJECT_DISCUSSION_ATTACHMENT_FOLDER . $discussion_id;
+        if (!is_null($file_name)) {
+            if (file_exists($path . '/' . $file_name)) {
+                unlink($path . '/' . $file_name);
+            }
+        }
+        if (is_dir($path)) {
+            // Check if no attachments left, so we can delete the folder also
+            $other_attachments = list_files($path);
+            if (count($other_attachments) == 0) {
+                delete_dir($path);
+            }
+        }
+    }
+
+    public function add_discussion($data)
+    {
+        if (is_client_logged_in()) {
+            $data['contact_id']       = get_contact_user_id();
+            $data['staff_id']         = 0;
+            $data['show_to_customer'] = 1;
+        } else {
+            $data['staff_id']   = get_staff_user_id();
+            $data['contact_id'] = 0;
+            if (isset($data['show_to_customer'])) {
+                $data['show_to_customer'] = 1;
+            } else {
+                $data['show_to_customer'] = 0;
+            }
+        }
+		$data['meeting_date']        = to_sql_date($data['meeting_date'], true);
+        $data['datecreated'] = date('Y-m-d H:i:s');
+        $data['description'] = nl2br($data['description']);
+        $this->db->insert(db_prefix() . 'projectdiscussions', $data);
+        $insert_id = $this->db->insert_id();
+        if ($insert_id) {
+            $members           = $this->get_project_members($data['project_id']);
+            $notification_data = [
+                'description' => 'not_created_new_project_discussion',
+                'link'        => 'projects/view/' . $data['project_id'] . '?group=project_discussions&discussion_id=' . $insert_id,
+            ];
+
+            if (is_client_logged_in()) {
+                $notification_data['fromclientid'] = get_contact_user_id();
+            } else {
+                $notification_data['fromuserid'] = get_staff_user_id();
+            }
+
+            $notifiedUsers = [];
+            foreach ($members as $member) {
+                if ($member['staff_id'] == get_staff_user_id() && !is_client_logged_in()) {
+                    continue;
+                }
+                $notification_data['touserid'] = $member['staff_id'];
+                if (add_notification($notification_data)) {
+                    array_push($notifiedUsers, $member['staff_id']);
+                }
+            }
+            pusher_trigger_notification($notifiedUsers);
+            $this->send_project_email_template($data['project_id'], 'project_discussion_created_to_staff', 'project_discussion_created_to_customer', $data['show_to_customer'], [
+                'staff' => [
+                    'discussion_id'   => $insert_id,
+                    'discussion_type' => 'regular',
+                ],
+                'customers' => [
+                    'customer_template' => true,
+                    'discussion_id'     => $insert_id,
+                    'discussion_type'   => 'regular',
+                ],
+            ]);
+            $this->log_activity($data['project_id'], 'project_activity_created_discussion', $data['subject'], $data['show_to_customer']);
+
+            return $insert_id;
+        }
+
+        return false;
+    }
+
+    public function edit_discussion($data, $id)
+    {
+        $this->db->where('id', $id);
+        if (isset($data['show_to_customer'])) {
+            $data['show_to_customer'] = 1;
+        } else {
+            $data['show_to_customer'] = 0;
+        }
+		$data['meeting_date']        = to_sql_date($data['meeting_date'], true);
+        $data['description'] = nl2br($data['description']);
+        $this->db->update(db_prefix() . 'projectdiscussions', $data);
+        if ($this->db->affected_rows() > 0) {
+            $this->log_activity($data['project_id'], 'project_activity_updated_discussion', $data['subject'], $data['show_to_customer']);
+
+            return true;
+        }
+
+        return false;
+    }
+
+    public function delete_discussion($id, $logActivity = true)
+    {
+        $discussion = $this->get_discussion($id);
+        $this->db->where('id', $id);
+        $this->db->delete(db_prefix() . 'projectdiscussions');
+        if ($this->db->affected_rows() > 0) {
+            if ($logActivity) {
+                $this->log_activity($discussion->project_id, 'project_activity_deleted_discussion', $discussion->subject, $discussion->show_to_customer);
+            }
+            $this->_delete_discussion_comments($id, 'regular');
+
+            return true;
+        }
+
+        return false;
+    }
+
+    public function copy($project_id, $data)
+    {
+        $_new_data = [];
+        $project   = $this->get($project_id);
+        $settings  = $this->get_project_settings($project_id);
+        $fields    = $this->db->list_fields(db_prefix() . 'projects');
+
+        foreach ($fields as $field) {
+            if (isset($project->$field)) {
+                $_new_data[$field] = $project->$field;
+            }
+        }
+
+        unset($_new_data['id']);
+        $_new_data['clientid'] = $data['clientid_copy_project'];
+        unset($_new_data['clientid_copy_project']);
+
+        $_new_data['start_date'] = to_sql_date($data['start_date']);
+
+        if ($_new_data['start_date'] > date('Y-m-d')) {
+            $_new_data['status'] = 1;
+        } else {
+            $_new_data['status'] = 2;
+        }
+        if ($data['deadline']) {
+            $_new_data['deadline'] = to_sql_date($data['deadline']);
+        } else {
+            $_new_data['deadline'] = null;
+        }
+
+        $_new_data['project_created'] = date('Y-m-d H:i:s');
+        $_new_data['addedfrom']       = get_staff_user_id();
+
+        $_new_data['date_finished'] = null;
+
+        if ($project->contact_notification == 2) {
+            $contacts = $this->clients_model->get_contacts($_new_data['clientid'], ['active' => 1, 'project_emails' => 1]);
+            $_new_data['notify_contacts'] = serialize(array_column($contacts, 'id'));
+        }
+
+        $this->db->insert(db_prefix() . 'projects', $_new_data);
+        $id = $this->db->insert_id();
+        if ($id) {
+            $tags = get_tags_in($project_id, 'project');
+            handle_tags_save($tags, $id, 'project');
+
+            foreach ($settings as $setting) {
+                $this->db->insert(db_prefix() . 'project_settings', [
+                    'project_id' => $id,
+                    'name'       => $setting['name'],
+                    'value'      => $setting['value'],
+                ]);
+            }
+
+            $added_tasks = [];
+            $tasks       = $this->get_tasks($project_id);
+
+            if (isset($data['tasks'])) {
+                foreach ($tasks as $task) {
+                    if (isset($data['task_include_followers'])) {
+                        $copy_task_data['copy_task_followers'] = 'true';
+                    }
+
+                    if (isset($data['task_include_assignees'])) {
+                        $copy_task_data['copy_task_assignees'] = 'true';
+                    }
+
+                    if (isset($data['tasks_include_checklist_items'])) {
+                        $copy_task_data['copy_task_checklist_items'] = 'true';
+                    }
+
+                    $copy_task_data['copy_from'] = $task['id'];
+
+                    // For new task start date, we will find the difference in days between
+                    // the old project start and and the old task start date and then
+                    // based on the new project start date, we will add e.q. 15 days to be
+                    // new task start date to the task
+                    // e.q. old project start date 2020-04-01, old task start date 2020-04-15 and due date 2020-04-30
+                    // copy project and set start date 2020-06-01
+                    // new task start date will be 2020-06-15 and below due date 2020-06-30
+                    $dStart    = new DateTime($project->start_date);
+                    $dEnd      = new DateTime($task['startdate']);
+                    $dDiff     = $dStart->diff($dEnd);
+                    $startDate = new DateTime($_new_data['start_date']);
+                    $startDate->modify('+' . $dDiff->days . ' DAY');
+                    $newTaskStartDate = $startDate->format('Y-m-d');
+
+                    $merge = [
+                        'rel_id'              => $id,
+                        'rel_type'            => 'project',
+                        'last_recurring_date' => null,
+                        'startdate'           => $newTaskStartDate,
+                        'status'              => $data['copy_project_task_status'],
+                    ];
+
+                    // Calculate the diff in days between the task start and due date
+                    // then add these days to the new task start date to be used as this task due date
+                    if ($task['duedate']) {
+                        $dStart  = new DateTime($task['startdate']);
+                        $dEnd    = new DateTime($task['duedate']);
+                        $dDiff   = $dStart->diff($dEnd);
+                        $dueDate = new DateTime($newTaskStartDate);
+                        $dueDate->modify('+' . $dDiff->days . ' DAY');
+                        $merge['duedate'] = $dueDate->format('Y-m-d');
+                    }
+
+                    $task_id = $this->tasks_model->copy($copy_task_data, $merge);
+
+                    if ($task_id) {
+                        array_push($added_tasks, $task_id);
+                    }
+                }
+            }
+
+            if (isset($data['milestones'])) {
+                $milestones        = $this->get_milestones($project_id);
+                $_added_milestones = [];
+                foreach ($milestones as $milestone) {
+                    $oldProjectStartDate = new DateTime($project->start_date);
+                    $dDuedate            = new DateTime($milestone['due_date']);
+                    $dDiff               = $oldProjectStartDate->diff($dDuedate);
+
+                    $newProjectStartDate = new DateTime($_new_data['start_date']);
+                    $newProjectStartDate->modify('+' . $dDiff->days . ' DAY');
+                    $newMilestoneDueDate = $newProjectStartDate->format('Y-m-d');
+
+                    $this->db->insert(db_prefix() . 'milestones', [
+                        'name'                            => $milestone['name'],
+                        'project_id'                      => $id,
+                        'milestone_order'                 => $milestone['milestone_order'],
+                        'description_visible_to_customer' => $milestone['description_visible_to_customer'],
+                        'description'                     => $milestone['description'],
+                        'due_date'                        => $newMilestoneDueDate,
+                        'datecreated'                     => date('Y-m-d'),
+                        'color'                           => $milestone['color'],
+                    ]);
+
+                    $milestone_id = $this->db->insert_id();
+
+                    if ($milestone_id) {
+                        $_added_milestone_data         = [];
+                        $_added_milestone_data['id']   = $milestone_id;
+                        $_added_milestone_data['name'] = $milestone['name'];
+                        $_added_milestones[]           = $_added_milestone_data;
+                    }
+                }
+
+                if (isset($data['tasks'])) {
+                    if (count($added_tasks) > 0) {
+                        // Original project tasks
+                        foreach ($tasks as $task) {
+                            if ($task['milestone'] != 0) {
+                                $this->db->where('id', $task['milestone']);
+                                $milestone = $this->db->get(db_prefix() . 'milestones')->row();
+
+                                if ($milestone) {
+                                    foreach ($_added_milestones as $added_milestone) {
+                                        if ($milestone->name == $added_milestone['name']) {
+                                            $this->db->where('id IN (' . implode(', ', $added_tasks) . ')');
+                                            $this->db->where('milestone', $task['milestone']);
+                                            $this->db->update(db_prefix() . 'tasks', [
+                                                'milestone' => $added_milestone['id'],
+                                            ]);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                // milestones not set
+                if (count($added_tasks)) {
+                    foreach ($added_tasks as $task) {
+                        $this->db->where('id', $task['id']);
+                        $this->db->update(db_prefix() . 'tasks', [
+                            'milestone' => 0,
+                        ]);
+                    }
+                }
+            }
+
+            if (isset($data['members'])) {
+                $members  = $this->get_project_members($project_id);
+                $_members = [];
+
+                foreach ($members as $member) {
+                    array_push($_members, $member['staff_id']);
+                }
+
+                $this->add_edit_members([
+                    'project_members' => $_members,
+                ], $id);
+            }
+
+            foreach (get_custom_fields('projects') as $field) {
+                $value = get_custom_field_value($project_id, $field['id'], 'projects', false);
+                if ($value != '') {
+                    $this->db->insert(db_prefix() . 'customfieldsvalues', [
+                        'relid'   => $id,
+                        'fieldid' => $field['id'],
+                        'fieldto' => 'projects',
+                        'value'   => $value,
+                    ]);
+                }
+            }
+
+            $this->log_activity($id, 'project_activity_created');
+
+            log_activity('Project Copied [ID: ' . $project_id . ', NewID: ' . $id . ']');
+
+            hooks()->do_action('project_copied', [
+                'project_id'     => $project_id,
+                'new_project_id' => $id,
+            ]);
+
+            return $id;
+        }
+
+        return false;
+    }
+
+    public function get_staff_notes($project_id)
+    {
+        $this->db->where('project_id', $project_id);
+        $this->db->where('staff_id', get_staff_user_id());
+        $notes = $this->db->get(db_prefix() . 'project_notes')->row();
+        if ($notes) {
+            return $notes->content;
+        }
+
+        return '';
+    }
+
+    public function save_note($data, $project_id)
+    {
+        // Check if the note exists for this project;
+        $this->db->where('project_id', $project_id);
+        $this->db->where('staff_id', get_staff_user_id());
+        $notes = $this->db->get(db_prefix() . 'project_notes')->row();
+        if ($notes) {
+            $this->db->where('id', $notes->id);
+            $this->db->update(db_prefix() . 'project_notes', [
+                'content' => $data['content'],
+            ]);
+            if ($this->db->affected_rows() > 0) {
+                return true;
+            }
+
+            return false;
+        }
+        $this->db->insert(db_prefix() . 'project_notes', [
+            'staff_id'   => get_staff_user_id(),
+            'content'    => $data['content'],
+            'project_id' => $project_id,
+        ]);
+        $insert_id = $this->db->insert_id();
+        if ($insert_id) {
+            return true;
+        }
+
+        return false;
+
+
+        return false;
+    }
+
+    public function delete($project_id)
+    {
+        $project_name = get_project_name_by_id($project_id);
+
+        $this->db->where('id', $project_id);
+        $this->db->delete(db_prefix() . 'projects');
+        if ($this->db->affected_rows() > 0) {
+            $this->db->where('project_id', $project_id);
+            $this->db->delete(db_prefix() . 'project_members');
+
+            $this->db->where('project_id', $project_id);
+            $this->db->delete(db_prefix() . 'project_notes');
+
+            $this->db->where('project_id', $project_id);
+            $this->db->delete(db_prefix() . 'milestones');
+			//tblcasedetails
+            $this->db->where('project_id', $project_id);
+            $this->db->delete(db_prefix() . 'case_details');
+
+            //tblhearings
+            $this->db->where('project_id', $project_id);
+            $this->db->delete(db_prefix() . 'hearings');
+
+            // Email Center
+            $this->db->where('case_id', $project_id);
+            $this->db->delete(db_prefix() . 'case_communication_center');
+
+            // Scopes
+            $this->db->where('case_id', $project_id);
+            $this->db->delete(db_prefix() . 'case_scopes');
+
+            // Case Updates
+            $this->db->where('rel_id', $project_id);
+            $this->db->where('rel_type', 'project');
+            $this->db->delete(db_prefix() . 'project_updates');
+            // Delete the custom field values
+            $this->db->where('relid', $project_id);
+            $this->db->where('fieldto', 'projects');
+            $this->db->delete(db_prefix() . 'customfieldsvalues');
+
+            $this->db->where('rel_id', $project_id);
+            $this->db->where('rel_type', 'project');
+            $this->db->delete(db_prefix() . 'taggables');
+
+
+            $this->db->where('project_id', $project_id);
+            $discussions = $this->db->get(db_prefix() . 'projectdiscussions')->result_array();
+            foreach ($discussions as $discussion) {
+                $discussion_comments = $this->get_discussion_comments($discussion['id'], 'regular');
+                foreach ($discussion_comments as $comment) {
+                    $this->delete_discussion_comment_attachment($comment['file_name'], $discussion['id']);
+                }
+                $this->db->where('discussion_id', $discussion['id']);
+                $this->db->delete(db_prefix() . 'projectdiscussioncomments');
+            }
+            $this->db->where('project_id', $project_id);
+            $this->db->delete(db_prefix() . 'projectdiscussions');
+
+            $files = $this->get_files($project_id);
+            foreach ($files as $file) {
+                $this->remove_file($file['id']);
+            }
+
+            $tasks = $this->get_tasks($project_id);
+            foreach ($tasks as $task) {
+                $this->tasks_model->delete_task($task['id'], false);
+            }
+
+            $this->db->where('project_id', $project_id);
+            $this->db->delete(db_prefix() . 'project_settings');
+
+            $this->db->where('project_id', $project_id);
+            $this->db->delete(db_prefix() . 'project_activity');
+
+            $this->db->where('project_id', $project_id);
+            $this->db->update(db_prefix() . 'expenses', [
+                'project_id' => 0,
+            ]);
+
+            $this->db->where('project_id', $project_id);
+            $this->db->update(db_prefix() . 'contracts', [
+                'project_id' => null,
+            ]);
+
+            $this->db->where('project_id', $project_id);
+            $this->db->update(db_prefix() . 'invoices', [
+                'project_id' => 0,
+            ]);
+
+            $this->db->where('project_id', $project_id);
+            $this->db->update(db_prefix() . 'creditnotes', [
+                'project_id' => 0,
+            ]);
+
+            $this->db->where('project_id', $project_id);
+            $this->db->update(db_prefix() . 'estimates', [
+                'project_id' => 0,
+            ]);
+
+            $this->db->where('project_id', $project_id);
+            $this->db->update(db_prefix() . 'tickets', [
+                'project_id' => 0,
+            ]);
+
+            $this->db->where('project_id', $project_id);
+            $this->db->delete(db_prefix() . 'pinned_projects');
+
+            log_activity('Project Deleted [ID: ' . $project_id . ', Name: ' . $project_name . ']');
+
+            return true;
+        }
+
+        return false;
+    }
+
+    public function get_activity($id = '', $limit = '', $only_project_members_activity = false)
+    {
+        if (!is_client_logged_in()) {
+            $has_permission = has_permission('projects', '', 'view');
+            if (!$has_permission) {
+                $this->db->where('project_id IN (SELECT project_id FROM ' . db_prefix() . 'project_members WHERE staff_id=' . get_staff_user_id() . ')');
+            }
+        }
+        if (is_client_logged_in()) {
+            $this->db->where('visible_to_customer', 1);
+        }
+        if (is_numeric($id)) {
+            $this->db->where('project_id', $id);
+        }
+        if (is_numeric($limit)) {
+            $this->db->limit($limit);
+        }
+        $this->db->order_by('dateadded', 'desc');
+        $activities = $this->db->get(db_prefix() . 'project_activity')->result_array();
+        $i          = 0;
+        foreach ($activities as $activity) {
+            $seconds          = get_string_between($activity['additional_data'], '<seconds>', '</seconds>');
+            $other_lang_keys  = get_string_between($activity['additional_data'], '<lang>', '</lang>');
+            $_additional_data = $activity['additional_data'];
+
+            if ($seconds != '') {
+                $_additional_data = str_replace('<seconds>' . $seconds . '</seconds>', seconds_to_time_format($seconds), $_additional_data);
+            }
+
+            if ($other_lang_keys != '') {
+                $_additional_data = str_replace('<lang>' . $other_lang_keys . '</lang>', _l($other_lang_keys), $_additional_data);
+            }
+
+            if (strpos($_additional_data, 'project_status_') !== false) {
+                $_additional_data = get_project_status_by_id(strafter($_additional_data, 'project_status_'));
+
+                if (isset($_additional_data['name'])) {
+                    $_additional_data = $_additional_data['name'];
+                }
+            }
+
+            $activities[$i]['description']     = _l($activities[$i]['description_key']);
+            $activities[$i]['additional_data'] = $_additional_data;
+            $activities[$i]['project_name']    = get_project_name_by_id($activity['project_id']);
+            unset($activities[$i]['description_key']);
+            $i++;
+        }
+
+        return $activities;
+    }
+
+    public function log_activity($project_id, $description_key, $additional_data = '', $visible_to_customer = 1)
+    {
+        if (!DEFINED('CRON')) {
+            if (is_client_logged_in()) {
+                $data['contact_id'] = get_contact_user_id();
+                $data['staff_id']   = 0;
+                $data['fullname']   = get_contact_full_name(get_contact_user_id());
+            } elseif (is_staff_logged_in()) {
+                $data['contact_id'] = 0;
+                $data['staff_id']   = get_staff_user_id();
+                $data['fullname']   = get_staff_full_name(get_staff_user_id());
+            }
+        } else {
+            $data['contact_id'] = 0;
+            $data['staff_id']   = 0;
+            $data['fullname']   = '[CRON]';
+        }
+        $data['description_key']     = $description_key;
+        $data['additional_data']     = $additional_data;
+        $data['visible_to_customer'] = $visible_to_customer;
+        $data['project_id']          = $project_id;
+        $data['dateadded']           = date('Y-m-d H:i:s');
+
+        $data = hooks()->apply_filters('before_log_project_activity', $data);
+
+        $this->db->insert(db_prefix() . 'project_activity', $data);
+    }
+
+    public function new_project_file_notification($file_id, $project_id)
+    {
+        $file = $this->get_file($file_id);
+
+        $additional_data = $file->file_name;
+        $this->log_activity($project_id, 'project_activity_uploaded_file', $additional_data, $file->visible_to_customer);
+
+        $members           = $this->get_project_members($project_id);
+        $notification_data = [
+            'description' => 'not_project_file_uploaded',
+            'link'        => 'projects/view/' . $project_id . '?group=project_files&file_id=' . $file_id,
+        ];
+
+        if (is_client_logged_in()) {
+            $notification_data['fromclientid'] = get_contact_user_id();
+        } else {
+            $notification_data['fromuserid'] = get_staff_user_id();
+        }
+
+        $notifiedUsers = [];
+        foreach ($members as $member) {
+            if ($member['staff_id'] == get_staff_user_id() && !is_client_logged_in()) {
+                continue;
+            }
+            $notification_data['touserid'] = $member['staff_id'];
+            if (add_notification($notification_data)) {
+                array_push($notifiedUsers, $member['staff_id']);
+            }
+        }
+        pusher_trigger_notification($notifiedUsers);
+
+        $this->send_project_email_template(
+            $project_id,
+            'project_file_to_staff',
+            'project_file_to_customer',
+            $file->visible_to_customer,
+            [
+                'staff'     => ['discussion_id' => $file_id, 'discussion_type' => 'file'],
+                'customers' => ['customer_template' => true, 'discussion_id' => $file_id, 'discussion_type' => 'file'],
+            ]
+        );
+    }
+
+    public function add_external_file($data)
+    {
+        $insert['dateadded']           = date('Y-m-d H:i:s');
+        $insert['project_id']          = $data['project_id'];
+        $insert['external']            = $data['external'];
+        $insert['visible_to_customer'] = $data['visible_to_customer'];
+        $insert['file_name']           = $data['files'][0]['name'];
+        $insert['subject']             = $data['files'][0]['name'];
+        $insert['external_link']       = $data['files'][0]['link'];
+
+        $path_parts         = pathinfo($data['files'][0]['name']);
+        $insert['filetype'] = get_mime_by_extension('.' . $path_parts['extension']);
+
+        if (isset($data['files'][0]['thumbnailLink'])) {
+            $insert['thumbnail_link'] = $data['files'][0]['thumbnailLink'];
+        }
+
+        if (isset($data['staffid'])) {
+            $insert['staffid'] = $data['staffid'];
+        } elseif (isset($data['contact_id'])) {
+            $insert['contact_id'] = $data['contact_id'];
+        }
+
+        $this->db->insert(db_prefix() . 'project_files', $insert);
+        $insert_id = $this->db->insert_id();
+        if ($insert_id) {
+            $this->new_project_file_notification($insert_id, $data['project_id']);
+
+            return $insert_id;
+        }
+
+        return false;
+    }
+
+    public function send_project_email_template($project_id, $staff_template, $customer_template, $action_visible_to_customer, $additional_data = [])
+    {
+        if (count($additional_data) == 0) {
+            $additional_data['customers'] = [];
+            $additional_data['staff']     = [];
+        } elseif (count($additional_data) == 1) {
+            if (!isset($additional_data['staff'])) {
+                $additional_data['staff'] = [];
+            } else {
+                $additional_data['customers'] = [];
+            }
+        }
+
+        $project = $this->get($project_id);
+        $members = $this->get_project_members($project_id);
+
+        foreach ($members as $member) {
+            if (is_staff_logged_in() && $member['staff_id'] == get_staff_user_id()) {
+                continue;
+            }
+            $mailTemplate = mail_template($staff_template, $project, $member, $additional_data['staff']);
+            if (isset($additional_data['attachments'])) {
+                foreach ($additional_data['attachments'] as $attachment) {
+                    $mailTemplate->add_attachment($attachment);
+                }
+            }
+            $mailTemplate->send();
+        }
+        
+        if ($action_visible_to_customer == 1) {
+            if ($project->contact_notification == 1) {
+                $contacts = $this->clients_model->get_contacts($project->clientid, ['active' => 1, 'project_emails' => 1]);
+            } elseif ($project->contact_notification == 2) {
+                $contacts = [];
+                $contactIds = unserialize($project->notify_contacts);
+                if(count($contactIds) > 0){
+                    $this->db->where_in('id', $contactIds);
+                    $this->db->where('active', 1);
+                    $contacts = $this->db->get(db_prefix() . 'contacts')->result_array();
+                }
+            } else {
+                $contacts = [];
+            }
+
+            foreach ($contacts as $contact) {
+                if (is_client_logged_in() && $contact['id'] == get_contact_user_id()) {
+                    continue;
+                }
+                $mailTemplate = mail_template($customer_template, $project, $contact, $additional_data['customers']);
+                if (isset($additional_data['attachments'])) {
+                    foreach ($additional_data['attachments'] as $attachment) {
+                        $mailTemplate->add_attachment($attachment);
+                    }
+                }
+                $mailTemplate->send();
+            }
+        }
+    }
+
+    private function _get_project_billing_data($id)
+    {
+        $this->db->select('billing_type,project_rate_per_hour');
+        $this->db->where('id', $id);
+
+        return $this->db->get(db_prefix() . 'projects')->row();
+    }
+
+    public function total_logged_time_by_billing_type($id, $conditions = [])
+    {
+        $project_data = $this->_get_project_billing_data($id);
+        $data         = [];
+        if ($project_data->billing_type == 2) {
+            $seconds             = $this->total_logged_time($id);
+            $data                = $this->projects_model->calculate_total_by_project_hourly_rate($seconds, $project_data->project_rate_per_hour);
+            $data['logged_time'] = $data['hours'];
+        } elseif ($project_data->billing_type == 3) {
+            $data = $this->_get_data_total_logged_time($id);
+        }
+
+        return $data;
+    }
+
+    public function data_billable_time($id)
+    {
+        return $this->_get_data_total_logged_time($id, [
+            'billable' => 1,
+        ]);
+    }
+
+    public function data_billed_time($id)
+    {
+        return $this->_get_data_total_logged_time($id, [
+            'billable' => 1,
+            'billed'   => 1,
+        ]);
+    }
+
+    public function data_unbilled_time($id)
+    {
+        return $this->_get_data_total_logged_time($id, [
+            'billable' => 1,
+            'billed'   => 0,
+        ]);
+    }
+
+    private function _delete_discussion_comments($id, $type)
+    {
+        $this->db->where('discussion_id', $id);
+        $this->db->where('discussion_type', $type);
+        $comments = $this->db->get(db_prefix() . 'projectdiscussioncomments')->result_array();
+        foreach ($comments as $comment) {
+            $this->delete_discussion_comment_attachment($comment['file_name'], $id);
+        }
+        $this->db->where('discussion_id', $id);
+        $this->db->where('discussion_type', $type);
+        $this->db->delete(db_prefix() . 'projectdiscussioncomments');
+    }
+
+    private function _get_data_total_logged_time($id, $conditions = [])
+    {
+        $project_data = $this->_get_project_billing_data($id);
+        $tasks        = $this->get_tasks($id, $conditions);
+
+        if ($project_data->billing_type == 3) {
+            $data                = $this->calculate_total_by_task_hourly_rate($tasks);
+            $data['logged_time'] = seconds_to_time_format($data['total_seconds']);
+        } elseif ($project_data->billing_type == 2) {
+            $seconds = 0;
+            foreach ($tasks as $task) {
+                $seconds += $task['total_logged_time'];
+            }
+            $data                = $this->calculate_total_by_project_hourly_rate($seconds, $project_data->project_rate_per_hour);
+            $data['logged_time'] = $data['hours'];
+        }
+
+        return $data;
+    }
+
+    private function _update_discussion_last_activity($id, $type)
+    {
+        if ($type == 'file') {
+            $table = db_prefix() . 'project_files';
+        } elseif ($type == 'regular') {
+            $table = db_prefix() . 'projectdiscussions';
+        }
+        $this->db->where('id', $id);
+        $this->db->update($table, [
+            'last_activity' => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    public function send_project_email_mentioned_users($project_id, $staff_template, $staff, $additional_data = [])
+    {
+        $this->load->model('staff_model');
+
+        $project = $this->get($project_id);
+
+        foreach ($staff as $staffId) {
+            if (is_staff_logged_in() && $staffId == get_staff_user_id()) {
+                continue;
+            }
+            $member             = (array) $this->staff_model->get($staffId);
+            $member['staff_id'] = $member['staffid'];
+
+            $mailTemplate = mail_template($staff_template, $project, $member, $additional_data['staff']);
+            if (isset($additional_data['attachments'])) {
+                foreach ($additional_data['attachments'] as $attachment) {
+                    $mailTemplate->add_attachment($attachment);
+                }
+            }
+            $mailTemplate->send();
+        }
+    }
+
+    public function convert_estimate_items_to_tasks($project_id, $items, $assignees, $project_data, $project_settings)
+    {
+        $this->load->model('tasks_model');
+        foreach ($items as $index => $itemId) {
+
+            $this->db->where('id', $itemId);
+            $_item = $this->db->get(db_prefix() . 'itemable')->row();
+
+            $data = [
+                'billable' => 'on',
+                'name' => $_item->description,
+                'description' => $_item->long_description,
+                'startdate' => $project_data['start_date'],
+                'duedate' => '',
+                'rel_type' => 'project',
+                'rel_id' => $project_id,
+                'hourly_rate' => $project_data['billing_type'] == 3 ? $_item->rate : 0,
+                'priority' => get_option('default_task_priority'),
+                'withDefaultAssignee' => false,
+            ];
+
+            if (isset($project_settings->view_tasks)) {
+                $data['visible_to_client'] = 'on';
+            }
+
+            $task_id = $this->tasks_model->add($data);
+
+            if ($task_id) {
+                $staff_id = $assignees[$index];
+
+                $this->tasks_model->add_task_assignees([
+                    'taskid' => $task_id,
+                    'assignee' => intval($staff_id),
+                ]);
+
+                if (!$this->is_member($project_id, $staff_id)) {
+                    $this->db->insert(db_prefix() . 'project_members', [
+                        'project_id' => $project_id,
+                        'staff_id'   => $staff_id,
+                    ]);
+                }
+            }
+        }
+    }
+
+       public function fetch_project_details($q, $limit, $start,$casetype,$status)
+    {
+        $result = [
+            'result'         => [],
+            'type'           => 'projects',
+            'search_heading' => _l('projects'),
+        ];
+
+        $projects = has_permission('projects', '', 'view');
+        // Projects
+        $this->db->select('*,tblprojects.name as proejct_name,tblprojects.id as id,tbloppositeparty.name as oppositeparty');
+        $this->db->from(db_prefix() . 'projects');
+        $this->db->join(db_prefix() . 'clients', db_prefix() . 'clients.userid = ' . db_prefix() . 'projects.clientid');
+		  $this->db->join(db_prefix() . 'oppositeparty', db_prefix() . 'oppositeparty.id = ' . db_prefix() . 'projects.opposite_party');
+        $this->db->join(db_prefix() . 'case_natures', db_prefix() . 'case_natures.id = ' . db_prefix() . 'projects.case_nature','left');
+        if (!$projects) {
+            $this->db->where(db_prefix() . 'projects.id IN (SELECT project_id FROM ' . db_prefix() . 'project_members WHERE staff_id=' . get_staff_user_id() . ')');
+        }
+        /* if ($where != false) {
+            $this->db->where($where);
+        }*/
+
+        if ($casetype != '') {
+            $this->db->where('case_type',$casetype);
+        }
+        if ($status != '') {
+            $this->db->where('status',$status);
+        }
+
+        if (!startsWith($q, '#')) {
+            $this->db->where('(company LIKE "%' . $this->db->escape_like_str($q) . '%" ESCAPE \'!\'
+                OR description LIKE "%' . $this->db->escape_like_str($q) . '%" ESCAPE \'!\'
+                OR tblprojects.name LIKE "%' . $this->db->escape_like_str($q) . '%" ESCAPE \'!\'
+                OR vat LIKE "%' . $this->db->escape_like_str($q) . '%" ESCAPE \'!\'
+                OR phonenumber LIKE "%' . $this->db->escape_like_str($q) . '%" ESCAPE \'!\'
+                OR tblclients.city LIKE "%' . $this->db->escape_like_str($q) . '%" ESCAPE \'!\'
+                OR zip LIKE "%' . $this->db->escape_like_str($q) . '%" ESCAPE \'!\'
+                OR state LIKE "%' . $this->db->escape_like_str($q) . '%" ESCAPE \'!\'
+                OR zip LIKE "%' . $this->db->escape_like_str($q) . '%" ESCAPE \'!\'
+                OR tblclients.address LIKE "%' . $this->db->escape_like_str($q) . '%" ESCAPE \'!\'
+                OR case_type LIKE "%' . $this->db->escape_like_str($q) . '%" ESCAPE \'!\'
+                OR tblcase_natures.name LIKE "%' . $this->db->escape_like_str($q) . '%" ESCAPE \'!\'
+				 OR tbloppositeparty.name LIKE "%' . $this->db->escape_like_str($q) . '%" ESCAPE \'!\'
+                )');
+        } else {
+            $this->db->where('id IN
+                (SELECT rel_id FROM ' . db_prefix() . 'taggables WHERE tag_id IN
+                (SELECT id FROM ' . db_prefix() . 'tags WHERE tblprojects.name="' . $this->db->escape_str(strafter($q, '#')) . '")
+                AND ' . db_prefix() . 'taggables.rel_type=\'project\' GROUP BY rel_id HAVING COUNT(tag_id) = 1)
+                ');
+        }
+
+        $this->db->limit($limit,$start);
+        $this->db->order_by('tblprojects.id', 'desc');
+        $projects = $this->db->get()->result_array();
+        $res = '';
+        foreach ($projects as $project_) {
+            $primary_contact_id = get_primary_contact_user_id($project_['clientid']);
+            $status = get_project_status_by_id($project_['status']);  
+            $up = explode('^',get_case_latest_update($project_['id'],true));
+            $cont = '';
+            $breaks = array("<br />","<br>","<br/>");
+            if(isset($up[1]))  
+                $cont = str_ireplace($breaks, "\r\n", $up[1]);   
+            $res .=  ' 
+                        <div class="col-sm-3">
+                            <div class="card"  style="box-shadow: 0 2px 5px 0 rgba(0, 0, 0, 0.56), 0 2px 10px 0 rgba(0, 0, 0, 0.52); padding: 10px; margin: 4px; height: 290px; max-height: 290px;"   >
+                                <div class="card-body">
+                                    <a href="'.admin_url('projects/view/'.$project_['id']).'" ><h5 class="card-title" ><strong>'.$project_['proejct_name'].'</strong></h5></a>
+                                    <p class="card-text" style="margin: 0 0 4px;"><b>'._l('casediary_file_no').' :</b>'.$project_['file_no']. get_nature_of_case_by_id($project_['case_nature']).'</p>
+                                    <p class="card-text" style="margin:  0 0 4px;"><b>'._l('client').':</b>'.$project_['company'].'</p>
+									  <p class="card-text" style="margin:  0 0 4px;"><b>'._l('opposite_party').':</b>'.$project_['oppositeparty'].'</p>
+                                    <p class="card-text" style="margin:  0 0 4px;"><b>'._l('project_start_date').':</b>'._d($project_['start_date']).'</span> |   <button type="button" class="btn btn-default btn-sm btn-icon mleft10  pop" data-container="body" data-toggle="popover" data-placement="bottom" data-content="'.$cont.'"
+    data-original-title="'.$up[0].'" title="'.$up[0].'"> <i class="fa fa-tag"></i></button> </p>
+	  <p class="card-text" style="margin:  0 0 4px;"><b>'._l('claiming_amount').':</b>'.number_format($project_['claiming_amount'],2).'</p>
+	   <p class="card-text" style="margin:  0 0 4px;"><b>'._l('lawyer_attending').':</b>'.get_latest_assignees_byproject($project_['id']).'</p>
+                                    <p class="card-text" style="margin:  0 0 4px;">
+                        <span class="label label inline-block" style="color: red;border: 1px solid red;">'._l($project_['case_type']).'</span>&nbsp;<span class="label label inline-block project-status-"'.$project_['status'].'" style="color:'.$status['color'].';border:1px solid '.$status['color'].'">'.$status['name'].'</span></p>
+                                </div>
+                            </div> 
+                        </div> 
+
+                        ';
+
+               
+        }
+
+        return $res;
+    }
+
+     public function fetch_project_details_num_rows($q, $casetype,$status)
+    {
+        $result = [
+            'result'         => [],
+            'type'           => 'projects',
+            'search_heading' => _l('projects'),
+        ];
+
+        $projects = has_permission('projects', '', 'view');
+        // Projects
+        $this->db->select();
+        $this->db->from(db_prefix() . 'projects');
+        $this->db->join(db_prefix() . 'clients', db_prefix() . 'clients.userid = ' . db_prefix() . 'projects.clientid');
+        if (!$projects) {
+            $this->db->where(db_prefix() . 'projects.id IN (SELECT project_id FROM ' . db_prefix() . 'project_members WHERE staff_id=' . get_staff_user_id() . ')');
+        }
+       /* if ($where != false) {
+            $this->db->where($where);
+        }*/
+
+        if ($casetype != '') {
+            $this->db->where('case_type',$casetype);
+        }
+        if ($status != '') {
+            $this->db->where('status',$status);
+        }
+
+        if (!startsWith($q, '#')) {
+            $this->db->where('(company LIKE "%' . $this->db->escape_like_str($q) . '%" ESCAPE \'!\'
+                OR description LIKE "%' . $this->db->escape_like_str($q) . '%" ESCAPE \'!\'
+                OR name LIKE "%' . $this->db->escape_like_str($q) . '%" ESCAPE \'!\'
+                OR vat LIKE "%' . $this->db->escape_like_str($q) . '%" ESCAPE \'!\'
+                OR phonenumber LIKE "%' . $this->db->escape_like_str($q) . '%" ESCAPE \'!\'
+                OR city LIKE "%' . $this->db->escape_like_str($q) . '%" ESCAPE \'!\'
+                OR zip LIKE "%' . $this->db->escape_like_str($q) . '%" ESCAPE \'!\'
+                OR state LIKE "%' . $this->db->escape_like_str($q) . '%" ESCAPE \'!\'
+                OR zip LIKE "%' . $this->db->escape_like_str($q) . '%" ESCAPE \'!\'
+                OR address LIKE "%' . $this->db->escape_like_str($q) . '%" ESCAPE \'!\'
+                OR case_type LIKE "%' . $this->db->escape_like_str($q) . '%" ESCAPE \'!\'
+                )');
+        } else {
+            $this->db->where('id IN
+                (SELECT rel_id FROM ' . db_prefix() . 'taggables WHERE tag_id IN
+                (SELECT id FROM ' . db_prefix() . 'tags WHERE name="' . $this->db->escape_str(strafter($q, '#')) . '")
+                AND ' . db_prefix() . 'taggables.rel_type=\'project\' GROUP BY rel_id HAVING COUNT(tag_id) = 1)
+                ');
+        }
+
+        //$this->db->limit($limit,$start);
+        $this->db->order_by('id', 'desc');
+        return $this->db->get()->num_rows();
+        
+    }
+
+    public function update_expense_approvals($data){
+        
+        $_name['project_id'] = $data['ticketid'];
+        $_name['approval_name'] = $data['approval_name'];
+        if(total_rows('tblexpense_approval_names',array('project_id'=>$_name['project_id'],'approval_name'=>trim($_name['approval_name']))) > 0){
+            return false;
+        }
+
+        $this->db->insert('tblexpense_approval_names',$_name);
+        $insert_id = $this->db->insert_id();
+        if($insert_id){ 
+			$this->db->where('name', 'next_reference_no');
+            $this->db->set('value', 'value+1', false);
+            $this->db->update('tbloptions');
+            $insert['approval_name_id'] = $insert_id;
+            //$insert['rel_type'] = 'expense';
+            $apprival_types = get_approval_types('expense');
+            $j=get_firstapproval_name('expense');//1;
+            foreach ($data['approval_assigned'] as $key=>$row) {
+                   $insert['staffid'] = $row;
+                   $insert['approval_heading_id'] = $j++;
+                   $insert['approval_status']=2 ; 
+                   $insert['addedfrom'] = get_staff_user_id();
+                   $insert['dateadded'] = date('Y-m-d H:i:s'); 
+                   $this->db->insert('tblexpense_approvals',$insert);
+            }
+            return true;
+        }
+        
+    }
+
+   public function change_approval_status($id, $status)
+    {
+        $this->db->where('id', $id);
+        $this->db->update(db_prefix() . 'expense_approvals', [
+            'approval_status' => $status,
+			'dateapproved'=>date('Y-m-d H:i:s'),
+        ]);
+        $alert   = 'warning';
+        $message = _l('ticket_status_changed_fail');
+        if ($this->db->affected_rows() > 0) {
+			 //Change Overall Status
+                $approval_row = $this->db->get_where('tblexpense_approvals',array('id'=>$id))->row();
+            //------------------------------
+            if($status == 3){
+				 $total_approved_count =total_rows('tblexpense_approvals',array('approval_name_id'=>$approval_row->approval_name_id,'approval_status'=>3));
+                $this->db->where('id',$approval_row->approval_name_id);
+                $this->db->update('tblexpense_approval_names',array('overall_status'=>$total_approved_count));
+				 $project_id = $this->db->get_where('tblexpense_approval_names',array('id'=>$approval_row->approval_name_id))->row()->project_id;
+				 $referenceno = $this->db->get_where('tblexpense_approval_names',array('id'=>$approval_row->approval_name_id))->row()->approval_name;
+                $nextid = $id+1;
+                $next_approval = $this->db->get_where('tblexpense_approvals',array('id'=>$nextid));
+                $notifiedUsers=[];
+                if($next_approval->num_rows() > 0){
+                    $next_approval_data = $next_approval->row();
+                    $ticket = $this->get($project_id);
+                    $notified = add_notification([
+                        'description'     => 'expense_request_approval',
+                        'touserid'        => $next_approval_data->staffid,
+                        'fromcompany'     => 1,
+                        'fromuserid'      => 0,
+                        'link'            => 'projects/view/' . $project_id.'?group=project_expenses&reference='.$referenceno,
+                        'additional_data' => serialize([
+                            $ticket->name,
+                        ]),
+                    ]);
+                    if ($notified) {
+                        array_push($notifiedUsers, $next_approval_data->staffid);
+                    }        
+                } 
+				else{
+					 $this->db->where('approvalid',$approval_row->approval_name_id);
+        $this->db->update(db_prefix() . 'expenses', [
+            'approve_status' => 3,
+			'dateapproved'	=>date('Y-m-d H:i:s')
+        ]);
+				}
+
+                pusher_trigger_notification($notifiedUsers);
+				send_mail_template('project_status_changed_to_staff', get_staff($next_approval_data->staffid)->email, $next_approval_data->staffid, $project_id);
+            }
+			  if($status == 4){
+                $this->db->where('id',$approval_row->approval_name_id);
+                $this->db->update('tblexpense_approval_names',array('overall_status'=>'R'));
+				   $project_id = $this->db->get_where('tblexpense_approval_names',array('id'=>$approval_row->approval_name_id))->row()->project_id;
+				   $referenceno = $this->db->get_where('tblexpense_approval_names',array('id'=>$approval_row->approval_name_id))->row()->approval_name;
+               
+                $last_approval = $this->db->get_where('tblexpense_approvals',array('id'=>$id));
+                $notifiedUsers=[];
+				   if($last_approval->num_rows() > 0){
+                    $last_approval_data = $last_approval->row();
+                    $ticket = $this->get($project_id);
+					    $appmembers =  $this->db->get_where('tblexpense_approvals',array('approval_name_id'=>$last_approval_data->approval_name_id,'approval_status'=>3))->result_array();
+					
+					foreach($appmembers as $appmember){
+                    $notified = add_notification([
+                        'description'     => 'expense_request_rejected',
+                        'touserid'        =>  $appmember['staffid'],
+                        'fromcompany'     => 1,
+                        'fromuserid'      => 0,
+                        'link'            => 'projects/view/' . $project_id.'?group=project_expenses&reference='.$referenceno,
+                        'additional_data' => serialize([
+                            $ticket->name,
+                        ]),
+                    ]);
+                    if ($notified) {
+                        array_push($notifiedUsers, $appmember['staffid']);
+                    } 
+						send_mail_template('project_expstatus_rejected_by_staff', get_staff($appmember['staffid'])->email, $appmember['staffid'], $project_id);
+                } 
+					     pusher_trigger_notification($notifiedUsers);
+				
+            }
+
+		}
+            $alert   = 'success';
+            $message = _l('approval_status_changed_successfully');
+        }
+        return [
+            'alert'   => $alert,
+            'message' => $message,
+        ];
+    }
+public function change_approval_date($id, $appdate)
+    {
+        $this->db->where('id', $id);
+        $this->db->update(db_prefix() . 'expense_approvals', [
+            'dateapproved' =>  to_sql_date($appdate, true),
+        ]);
+        //$alert   = 'warning';
+        //$message = '';
+        if ($this->db->affected_rows() > 0) {
+            $alert   = 'success';
+            $message = _l('approval_date_changed_successfully');
+        }
+        return [
+            'alert'   => $alert,
+            'message' => $message,
+        ];
+    }
+    public function change_expense_approval_status($id, $status)
+    {
+        $this->db->where('id', $id);
+        $this->db->update(db_prefix() . 'expenses', [
+            'approve_status' => $status,
+			'dateapproved'	=>date('Y-m-d H:i:s')
+        ]);
+        $alert   = 'warning';
+        $message = _l('status_changed_fail');
+        if ($this->db->affected_rows() > 0) {
+           
+            $alert   = 'success';
+            $message = _l('approval_status_changed_successfully');
+        }
+        return [
+            'alert'   => $alert,
+            'message' => $message,
+        ];
+    }
+ 	public function change_approval_remarks($id, $remarks)
+    {
+        $this->db->where('id', $id);
+        $this->db->update(db_prefix() . 'expense_approvals', [
+            'approval_remarks' => $remarks,
+        ]);
+        //$alert   = 'warning';
+        //$message = '';
+        if ($this->db->affected_rows() > 0) {
+            $alert   = 'success';
+            $message = _l('added_successfully');
+        }
+        return [
+            'alert'   => $alert,
+            'message' => $message,
+        ];
+    }
+    
+    function add_installment($data ,$defaulter_id){
+        $data['installment_date'] = $data['installment_date'];
+        $data['datecreated'] = date('Y-m-d H:i:s');
+
+        $data['addedby'] = get_staff_user_id();
+        $data['recovery_id'] = $defaulter_id;
+        $data['recovery_type'] = 'project_recovery';
+        unset($data['customer_id']);
+        $this->db->insert('tblrecoveries_installments',$data);
+        $a = $this->db->error();
+        $insert_id = $this->db->insert_id();
+		/*if($data['installment_status']=='paid'){
+		$all_members = $this->get_project_members($defaulter_id);
+            foreach ($all_members as $member) {
+               // if (in_array($data['staff_id'], $new_project_members_to_receive_email)) {
+                  //  send_mail_template('project_installment_paid', $edata, $id, $client_id);
+				 send_mail_template('project_installment_paid_to_staff', $member['email'], $member['staff_id'],  $member['project_id']);
+              //  }
+            }
+		}*/
+		return $insert_id;
+    }
+	
+    public function get_installment_totalpaid($defaulterID){
+        $totalpaid = 0;
+         $totalpaid_qry = $this->db->query('SELECT SUM(installment_amount) as totalpaid FROM `tblrecoveries_installments` WHERE recovery_type = ? AND  recovery_id = ? AND installment_status = ?',array('project_recovery',$defaulterID,'paid'))->row();
+         if($totalpaid_qry->totalpaid > 0){
+            $totalpaid = $totalpaid_qry->totalpaid;
+         }
+        return $totalpaid;
+    }
+	 public function get_installment($id)
+    {
+        $this->db->where('id', $id);
+        return $this->db->get('tblrecoveries_installments')->row();
+    }
+
+    public function update_installment($data,$id){
+		/*if (is_client_logged_in()) {
+            $additional_data['contact_id']       = get_contact_user_id();
+            $additional_data['staff_id']         = 0;
+            $additional_data['show_to_customer'] = 1;
+        } else {
+            $additional_data['staff_id']   = get_staff_user_id();
+            $additional_data['contact_id'] = 0;
+            if (isset($additional_data['show_to_customer'])) {
+                $additional_data['show_to_customer'] = 1;
+            } else {
+                $additional_data['show_to_customer'] = 0;
+            }
+        }*/
+		if($data['installment_status']=='paid' || $data['installment_status']=='partially_paid'){
+		$data['receipt_date']=date('Y-m-d H:i:s');
+		}
+        $this->db->where('id',$id);
+        $this->db->update('tblrecoveries_installments',$data);
+		$recovery_id=$this->db->get_where('tblrecoveries_installments',array('id'=>$id))->row()->recovery_id;
+        if ($this->db->affected_rows() > 0) {
+		if($data['installment_status']=='paid' && $data['receipt_date']==date('Y-m-d H:i:s')){
+			$project = $this->get($recovery_id);
+		$members = $this->get_project_members($recovery_id);
+			 $notification_data = [
+                'description' => 'new_project_settlement',
+                'link'        => 'projects/view/' . $recovery_id . '?group=project_settlement',
+            ];
+
+            if (is_client_logged_in()) {
+                $notification_data['fromclientid'] = get_contact_user_id();
+            } else {
+                $notification_data['fromuserid'] = get_staff_user_id();
+            }
+
+            $notifiedUsers = [];
+			foreach ($members as $member) {
+                if ($member['staff_id'] == get_staff_user_id() && !is_client_logged_in()) {
+                    continue;
+                }
+                $notification_data['touserid'] = $member['staff_id'];
+                if (add_notification($notification_data)) {
+                    array_push($notifiedUsers, $member['staff_id']);
+                }
+				 send_mail_template('project_installment_paid_to_staff', $member['email'], $member['staff_id'],  $member['project_id']);
+				// $mailTemplate = mail_template($staff_template, $project, $member, $additional_data['staff']);
+         //   $mailTemplate->send();
+				  // $this->log_activity($data['project_id'], 'project_activity_created_discussion', $data['subject'], $data['show_to_customer']);
+            }
+            pusher_trigger_notification($notifiedUsers);
+           
+            }		
+            return true;
+        }
+
+        return false;
+    }
+	 public function delete_installment($id)
+    {
+        
+        $this->db->where('id', $id);
+        $this->db->delete('tblrecoveries_installments');
+        if ($this->db->affected_rows() > 0) {
+
+            return true;
+        }
+
+        return false;
+    }
+	
+	 public function verify_installment($id, $status)
+    {
+        $this->db->where('id', $id);
+        $this->db->update('tblrecoveries_installments', array(
+            'is_verified' => $status,
+            'verified_date'=>date('Y-m-d H:i:s'),
+            'verified_by'=>get_staff_user_id()
+        ));
+
+        if ($this->db->affected_rows() > 0) {
+           log_activity('Installment Verified  [ID: ' . $id . ' : ' . $status . ']');
+
+            return true;
+        }
+
+        return false;
+    } 
+    function add_payinstallment($data ,$defaulter_id){
+        $data['installment_date'] = date('Y-m-d',strtotime($data['installment_date']));
+        $data['datecreated'] = date('Y-m-d H:i:s');
+
+        $data['addedby'] = get_staff_user_id();
+        $data['project_id'] = $defaulter_id;
+        $data['project_type'] = 'project';
+        unset($data['customer_id']);
+        $this->db->insert('tblpayment_schedule',$data);
+        $a = $this->db->error();
+        return $insert_id = $this->db->insert_id();
+    }
+	
+    public function get_payinstallment_totalpaid($defaulterID){
+        $totalpaid = 0;
+         $totalpaid_qry = $this->db->query('SELECT SUM(installment_amount) as totalpaid FROM `tblpayment_schedule` WHERE project_type = ? AND  project_id = ? AND installment_status = ?',array('project',$defaulterID,'paid'))->row();
+         if($totalpaid_qry->totalpaid > 0){
+            $totalpaid = $totalpaid_qry->totalpaid;
+         }
+        return $totalpaid;
+    }
+	 public function get_payinstallment($id)
+    {
+        $this->db->where('id', $id);
+        return $this->db->get('tblpayment_schedule')->row();
+    }
+
+    public function update_payinstallment($data,$id){
+
+        $this->db->where('id',$id);
+        $this->db->update('tblpayment_schedule',$data);
+
+        if ($this->db->affected_rows() > 0) {
+
+            return true;
+        }
+
+        return false;
+    }
+	 public function delete_payinstallment($id)
+    {
+        
+        $this->db->where('id', $id);
+        $this->db->delete('tblpayment_schedule');
+        if ($this->db->affected_rows() > 0) {
+
+            return true;
+        }
+
+        return false;
+    }
+	
+	 public function verify_payinstallment($id, $status)
+    {
+        $this->db->where('id', $id);
+        $this->db->update('tblpayment_schedule', array(
+            'is_verified' => $status,
+            'verified_date'=>date('Y-m-d H:i:s'),
+            'verified_by'=>get_staff_user_id()
+        ));
+
+        if ($this->db->affected_rows() > 0) {
+            logActivity('Payment Schedule Verified  [ID: ' . $id . ' : ' . $status . ']');
+
+            return true;
+        }
+
+        return false;
+    } 
+	public function change_abscound_writeoff_case_status($project_id,$field,$status)
+    {
+        $this->db->where('id', $project_id);
+        $this->db->update('tblprojects', array(
+            $field => $status,
+            ));
+
+        if ($this->db->affected_rows() > 0) {
+        
+           $this->log_activity($project_id, $field.' status updated '.$status);
+
+            return true;
+        }
+
+        return false;
+    }
+	public function change_close_caseverify_status($project_id,$field,$status)
+    {
+        $this->db->where('id', $project_id);
+        $this->db->update('tblprojects', array(
+            $field => $status,
+			'close_verifydt '=> date('Y-m-d'),
+		  'close_verify' => get_staff_user_id(),
+            ));
+
+        if ($this->db->affected_rows() > 0) {
+        
+           $this->log_activity($project_id, $field.' status updated '.$status);
+
+            return true;
+        }
+
+        return false;
+    }
+	   
+	public function send_hearing_reminder($project_id, $staff_template, $customer_template, $action_visible_to_customer, $additional_data = [])
+    {
+        if (count($additional_data) == 0) {
+            $additional_data['customers'] = [];
+            $additional_data['staff']     = [];
+        } elseif (count($additional_data) == 1) {
+            if (!isset($additional_data['staff'])) {
+                $additional_data['staff'] = [];
+            } else {
+                $additional_data['customers'] = [];
+            }
+        }
+
+        $project = $this->get($project_id);
+        $members = $this->get_project_members($project_id);
+
+
+        $notification_data = [
+                'description' => 'hearing_reminder',
+                'link'        => 'projects/view/' . $project_id . '?group=hearings&type=' .$additional_data['staff']['hearing_type'],
+            ];
+
+        if (is_client_logged_in()) {
+            $notification_data['fromclientid'] = get_contact_user_id();
+        } else {
+            $notification_data['fromuserid'] = get_staff_user_id();
+        }
+
+        $notifiedUsers = [];
+        foreach ($members as $member) {
+            if (is_staff_logged_in() && $member['staff_id'] == get_staff_user_id()) {
+                continue;
+            }
+
+            $notification_data['touserid'] = $member['staff_id'];
+            if (add_notification($notification_data)) {
+                array_push($notifiedUsers, $member['staff_id']);
+            }
+            $mailTemplate = mail_template($staff_template, $project, $member, $additional_data['staff']);
+            $mailTemplate->send();
+        }
+
+        pusher_trigger_notification($notifiedUsers);
+
+        
+    }
+		public function send_installmentduedate_reminder($project_id, $staff_template, $customer_template, $action_visible_to_customer, $additional_data = [])
+    {
+        if (count($additional_data) == 0) {
+            $additional_data['customers'] = [];
+            $additional_data['staff']     = [];
+        } elseif (count($additional_data) == 1) {
+            if (!isset($additional_data['staff'])) {
+                $additional_data['staff'] = [];
+            } else {
+                $additional_data['customers'] = [];
+            }
+        }
+
+        $project = $this->get($project_id);
+        $members = $this->get_project_members($project_id);
+
+
+        $notification_data = [
+                'description' => 'installment_duedate_reminder',
+                'link'        => 'projects/view/' . $project_id . '?group=project_settlement',
+            ];
+
+        if (is_client_logged_in()) {
+            $notification_data['fromclientid'] = get_contact_user_id();
+        } else {
+            $notification_data['fromuserid'] = get_staff_user_id();
+        }
+
+        $notifiedUsers = [];
+        foreach ($members as $member) {
+            if (is_staff_logged_in() && $member['staff_id'] == get_staff_user_id()) {
+                continue;
+            }
+
+            $notification_data['touserid'] = $member['staff_id'];
+            if (add_notification($notification_data)) {
+                array_push($notifiedUsers, $member['staff_id']);
+            }
+            $mailTemplate = mail_template($staff_template, $project, $member, $additional_data['staff']);
+            $mailTemplate->send();
+        }
+
+        pusher_trigger_notification($notifiedUsers);
+
+        
+    }
+	
+	 // Ticket matter_types
+     public function get_mattertype($id = '')
+     {
+         if (is_numeric($id)) {
+             $this->db->where('type_id', $id);
+ 
+             return $this->db->get(db_prefix() . 'project_types')->row();
+         }
+ 
+         $this->db->order_by('id', 'asc');
+ 
+         return $this->db->get(db_prefix() . 'project_types')->result_array();
+     }
+     public function get_mattertypeslug($slug = 'agreements')
+     {
+              $this->db->where('slug', $slug);
+ 
+             return $this->db->get(db_prefix() . 'project_types')->row();
+      }
+ 
+     public function add_mattertype($data)
+     {
+         $this->db->insert(db_prefix() . 'project_types', $data);
+         $insert_id = $this->db->insert_id();
+         if ($insert_id) {
+             log_activity('New Matter Type Added [ID: ' . $insert_id . '.' . $data['id'] . ']');
+         }
+ 
+         return $insert_id;
+     }
+ 
+     public function update_mattertype($data, $id)
+     {	print_r($data);
+         $this->db->where('type_id', $id);
+         $this->db->update(db_prefix() . 'project_types', $data);
+         if ($this->db->affected_rows() > 0) {
+             log_activity('Matter Type Updated [ID: ' . $id . ' Name: ' . $data['id'] . ']');
+ 
+             return true;
+         }
+ 
+         return false;
+     }
+ 
+     public function delete_mattertype($id)
+     {
+         if (is_reference_in_table('case_type', db_prefix() . 'projects', $id)) {
+             return [
+                 'referenced' => true,
+             ];
+         }
+         $this->db->where('type_id', $id);
+         $this->db->delete(db_prefix() . 'project_types');
+         if ($this->db->affected_rows() > 0) {
+             log_activity('Matter Type Deleted [ID: ' . $id . ']');
+ 
+             return true;
+         }
+ 
+         return false;
+     }
+     //mattertype By slug
+      public function get_mattertypebyslug($slug = '')
+     {
+         if ($slug!='') {
+             $this->db->where('slug', $slug);
+ 
+             return $this->db->get(db_prefix() . 'project_types')->row();
+         }
+     }
+        public function send_matteroverview_to_email($content = '', $attachpdf = true, $cc = '',$project_id='')
+     {
+         $this->load->model('emails_model');
+         $project = $this->get($project_id);
+ 
+         if ($attachpdf) {
+            // $pdf    =app_pdf('project-data', LIBSPATH . 'pdf/Project_data_pdf', $project_id);
+              $pdf    = matter_overview_pdf($project_id);
+ 
+             $attach = $pdf->Output(slug_it($project->name) . '.pdf', 'S');
+             $this->emails_model->add_attachment(array(
+                 'attachment' => $attach,
+                 'filename' => slug_it($project->name) . '.pdf',
+                 'type' => 'application/pdf',
+             ));
+         }
+         $project->email = $cc;
+         $sent         = $this->emails_model->send_simple_email($project->email,'Matter Overview',$content);
+ 
+         if ($sent) {
+ 
+            return true;
+         }
+ 
+         return false;
+     }
+	public function get_subversionfiles($project_id)
+    {
+        if (is_client_logged_in()) {
+            $this->db->where('visible_to_customer', 1);
+        }
+        $this->db->where('project_id', $project_id);
+
+        return $this->db->get(db_prefix() . 'project_versionfiles')->result_array();
+    }
+	
+	public function add_internal_file_gag($data)
+    {
+		
+        $data['dateadded'] = date('Y-m-d H:i:s');
+        $data['staffid'] = get_staff_user_id();
+
+        $data['issue_date'] = to_sql_date($data['issue_date']);
+		 if ($data['subfiling_date'] == '') {
+            unset($data['subfiling_date']);
+        } else {
+            $data['subfiling_date'] = to_sql_date($data['subfiling_date']);
+        }
+        if ($data['expiry_date'] == '') {
+            unset($data['expiry_date']);
+        } else {
+            $data['expiry_date'] = to_sql_date($data['expiry_date']);
+        }
+		unset($data['matterchoose']);
+		unset($data['matter_text']);
+		
+ 		$this->db->insert(db_prefix() . 'project_versionfiles', $data);
+        $insert_id = $this->db->insert_id();
+        if ($insert_id) {
+            $this->new_project_subfile_notification($insert_id, $data['project_id']);
+
+            return $insert_id;
+        }
+
+        return false;
+    }
+	public function new_project_subfile_notification($file_id, $project_id)
+    {
+        $file = $this->get_subfile($file_id);
+
+        $additional_data = $file->file_name;
+        $this->log_activity($project_id, 'project_activity_uploaded_file', $additional_data, $file->visible_to_customer);
+
+        $members           = $this->get_project_members($project_id);
+        $notification_data = [
+            'description' => 'not_project_file_uploaded',
+            'link'        => 'projects/view/' . $project_id . '?group=project_subfiles&file_id=' . $file_id,
+        ];
+
+        if (is_client_logged_in()) {
+            $notification_data['fromclientid'] = get_contact_user_id();
+        } else {
+            $notification_data['fromuserid'] = get_staff_user_id();
+        }
+
+        $notifiedUsers = [];
+        foreach ($members as $member) {
+            if ($member['staff_id'] == get_staff_user_id() && !is_client_logged_in()) {
+                continue;
+            }
+            $notification_data['touserid'] = $member['staff_id'];
+            if (add_notification($notification_data)) {
+                array_push($notifiedUsers, $member['staff_id']);
+            }
+        }
+        pusher_trigger_notification($notifiedUsers);
+
+     /*   $this->send_project_email_template(
+            $project_id,
+            'project_file_to_staff',
+            'project_file_to_customer',
+            $file->visible_to_customer,
+            [
+                'staff'     => ['discussion_id' => $file_id, 'discussion_type' => 'file'],
+                'customers' => ['customer_template' => true, 'discussion_id' => $file_id, 'discussion_type' => 'file'],
+            ]
+        );*/
+    }
+ public function get_subfile($id, $project_id = false)
+    {
+        if (is_client_logged_in()) {
+            $this->db->where('visible_to_customer', 1);
+        }
+        $this->db->where('id', $id);
+        $file = $this->db->get(db_prefix() . 'project_versionfiles')->row();
+
+        if ($file && $project_id) {
+            if ($file->project_id != $project_id) {
+                return false;
+            }
+        }
+
+        return $file;
+    }
+
+    public function update_subfile_data($data)
+    {
+        $this->db->where('id', $data['id']);
+        unset($data['id']);
+         if(isset($data['issue_date']) && ($data['issue_date'] != '') && ($data['issue_date'] != '00-00-0000') ){
+            $data['issue_date'] = date('Y-m-d',strtotime($data['issue_date']));
+        } 
+        if(isset($data['expiry_date']) && ($data['expiry_date'] != '') && ($data['expiry_date'] != '00-00-0000') ){
+            $data['expiry_date'] = date('Y-m-d',strtotime($data['expiry_date']));
+    
+        }   
+        $this->db->update(db_prefix() . 'project_versionfiles', $data);
+    }
+ 	public function remove_subfile($id, $logActivity = true)
+    {
+        hooks()->do_action('before_remove_project_file', $id);
+
+        $this->db->where('id', $id);
+        $file = $this->db->get(db_prefix() . 'project_versionfiles')->row();
+        if ($file) {
+            if (empty($file->external)) {
+                $path     = get_upload_path_by_type('project') . $file->project_id . '/';
+                $fullPath = $path . $file->file_name;
+                if (file_exists($fullPath)) {
+                    unlink($fullPath);
+                    $fname     = pathinfo($fullPath, PATHINFO_FILENAME);
+                    $fext      = pathinfo($fullPath, PATHINFO_EXTENSION);
+                    $thumbPath = $path . $fname . '_thumb.' . $fext;
+
+                    if (file_exists($thumbPath)) {
+                        unlink($thumbPath);
+                    }
+                }
+            }
+
+            $this->db->where('id', $id);
+            $this->db->delete(db_prefix() . 'project_versionfiles');
+            if ($logActivity) {
+                $this->log_activity($file->project_id, 'project_activity_project_subfile_removed', $file->file_name, $file->visible_to_customer);
+            }
+
+            // Delete discussion comments
+            //$this->_delete_discussion_comments($id, 'file');
+
+            if (is_dir(get_upload_path_by_type('project') . $file->project_id)) {
+                // Check if no attachments left, so we can delete the folder also
+                $other_attachments = list_files(get_upload_path_by_type('project') . $file->project_id);
+                if (count($other_attachments) == 0) {
+                    delete_dir(get_upload_path_by_type('project') . $file->project_id);
+                }
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+	public function get_matters_of_client($id = '')
+
+    {
+
+        $this->db->select('tblprojects.id as id,tblprojects.name as name');
+
+       // $this->db->join('tblclient_oppositeparty_rel', 'tbloppositeparty.id=tblclient_oppositeparty_rel.opposite_party_id', 'left');
+
+        if(is_numeric($id)){
+
+            $this->db->where('tblprojects.clientid',$id);   
+
+        }
+ 		$this->db->where('tblprojects.parent_sub','main');
+
+
+        $leads = $this->db->get('tblprojects')->result_array();
+
+
+
+        return $leads;
+
+
+
+    }
+	
+public function add_internal_file($data)
+    {		
+        $data['dateadded'] = date('Y-m-d H:i:s');
+        $data['staffid'] = get_staff_user_id();
+
+        $data['issue_date'] = to_sql_date($data['issue_date']);
+		 if ($data['filing_date'] == '') {
+            unset($data['filing_date']);
+        } else {
+            $data['filing_date'] = to_sql_date($data['filing_date']);
+        }
+        if ($data['expiry_date'] == '') {
+            unset($data['expiry_date']);
+        } else {
+            $data['expiry_date'] = to_sql_date($data['expiry_date']);
+        }
+		$data['final_doc']=1;
+		
+ 		$this->db->insert(db_prefix() . 'project_files', $data);
+        $insert_id = $this->db->insert_id();
+        if ($insert_id) {
+            $this->new_project_file_notification($insert_id, $data['project_id']);
+
+            return $insert_id;
+        }
+
+        return false;
+    }
+	public function add_project_budget($data)
+    {
+		
+        $data['dateadded'] = date('Y-m-d H:i:s');
+        $data['addedfrom'] = get_staff_user_id();
+
+        $data['budget_date'] = to_sql_date($data['budget_date']);
+		/* if ($data['subfiling_date'] == '') {
+            unset($data['subfiling_date']);
+        } else {
+            $data['subfiling_date'] = to_sql_date($data['subfiling_date']);
+        }*/
+     
+				
+ 		$this->db->insert(db_prefix() . 'project_budget', $data);
+        $insert_id = $this->db->insert_id();
+        if ($insert_id) {
+			if($data['budget_reviewer_id'] !=0){
+                $this->send_budgetnotification_mail_to_relaties($insert_id,$data['project_id'],$data['budget_reviewer_id']);
+            }
+           $this->log_activity($data['project_id'], 'project_activity_created_budget', get_staff_full_name(get_staff_user_id()));
+           log_activity('Project Budget Created [ID:' . $insert_id . ']');
+
+            return $insert_id;
+        }
+
+        return false;
+    }
+	 public function update_project_budget($data, $id)
+    {
+		 $data['budget_date'] = to_sql_date($data['budget_date']);
+		 $data['budget_status']=0;
+        $this->db->where('id', $id);
+        $this->db->update('tblproject_budget', $data);
+        if ($this->db->affected_rows() > 0) {
+			 $this->send_budgetnotification_mail_to_relaties($id,$data['project_id'],$data['budget_reviewer_id']);
+            log_activity('Project Budget Updated [' . get_staff_full_name(get_staff_user_id()) . ', ID:' . $id . ']');
+ $this->log_activity($data['project_id'], 'project_activity_updated_budget', get_staff_full_name(get_staff_user_id()));
+           
+            return true;
+        }
+
+        return false;
+    }
+	public function change_budget_status($data, $id)
+    { 
+        $this->db->where('id', $id);
+        $this->db->update(db_prefix() . 'project_budget', $data);
+        if ($this->db->affected_rows() > 0) {
+			$budget=$this->db->select('id,budget_status,budget_approvalid,addedfrom,project_id')->from(db_prefix() . 'project_budget')->where('id', $id)->get()->row();
+			if($budget->budget_status==3){
+			 $this->send_budgetnotification_mail_to_relaties($id,$budget->project_id,$budget->addedfrom);
+				log_activity('Project Budget Rejected[' . get_staff_full_name(get_staff_user_id()) . ', ID:' . $id . ']');
+ $this->log_activity($budget->project_id, 'project_activity_rejected_budget', get_staff_full_name(get_staff_user_id()));
+			}
+			if($budget->budget_status==1){
+			 $this->send_budgetnotification_mail_to_relaties($id,$budget->project_id,$budget->budget_approvalid);
+			log_activity('Project Budget Reviewed [' . get_staff_full_name(get_staff_user_id()) . ', ID:' . $id . ']');
+ $this->log_activity($budget->project_id, 'project_activity_reviewed_budget', get_staff_full_name(get_staff_user_id()));
+			}
+			if($budget->budget_status==2){
+			
+			log_activity('Project Budget Approved [' . get_staff_full_name(get_staff_user_id()) . ', ID:' . $id . ']');
+ $this->log_activity($budget->project_id, 'project_activity_approved_budget', get_staff_full_name(get_staff_user_id()));
+			}
+		   return true;
+        }
+
+        return false;
+    }
+public function send_budgetnotification_mail_to_relaties($budget_id,$project_id,$assigned){
+               if ((!empty($assigned) && $assigned != 0)) {
+                $name = $this->db->select('budget_description')->from(db_prefix() . 'project_budget')->where('id', $budget_id)->get()->row()->budget_description;
+				$project_name = $this->db->select('name')->from(db_prefix() . 'projects')->where('id', $project_id)->get()->row()->name;
+			    $status = $this->db->select('budget_status')->from(db_prefix() . 'project_budget')->where('id', $budget_id)->get()->row()->budget_status;
+				  if($status==1)
+					    $description='new_budget_reviewd_waitingapproval';
+				   else if($status==0)
+				   		$description='new_budget_created_waitingreview';
+				   else if($status==3)
+				   		$description='new_budget_created_rejectedby';
+                $notification_data = [
+                    'description'     => $description,
+                    'touserid'        => $assigned,
+                    'link'            => 'projects/view/' . $project_id . '?group=project_expenses',
+                    'additional_data' =>serialize([$project_name.'-'.$name]) ,
+                ];
+
+                if (add_notification($notification_data)) {
+                    pusher_trigger_notification($assigned);
+                }
+
+                $this->db->select('email');
+                $this->db->where('staffid', $assigned);
+                $email = $this->db->get(db_prefix() . 'staff')->row()->email;
+				if($status==3)
+				send_mail_template('project_budget_rejected_by_staff',$email,$assigned,$project_id);
+				  else
+                send_mail_template('project_budget_added_to_staff',$email,$assigned,$project_id);
+				
+            }
+              
+    }
+public function get_clients_of_case($id = '')
+
+    {
+
+        $this->db->select('tblprojects.id as id,tblprojects.name,file_no');
+
+       // $this->db->join('tblclient_oppositeparty_rel', 'tbloppositeparty.id=tblclient_oppositeparty_rel.opposite_party_id', 'left');
+
+        if(is_numeric($id)){
+
+            $this->db->where('tblprojects.clientid',$id);   
+
+        }
+
+
+
+        $leads = $this->db->get('tblprojects')->result_array();
+
+
+
+        return $leads;
+
+
+
+    }
+
+}

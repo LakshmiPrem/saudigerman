@@ -1,0 +1,76 @@
+<!-- DEBUG-VIEW START 1 APPPATH/Views/invoice_recoveries/settlement_generate.php -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script type="text/javascript"  id="debugbar_loader" data-time="1716959397" src="https://debtics.com/apps/index.php?debugbar"></script><script type="text/javascript"  id="debugbar_dynamic_script"></script><style type="text/css"  id="debugbar_dynamic_style"></style>
+
+    <title>Document</title>
+</head>
+<body>
+    <h3 align="center"><u><b>DEBT SETTLEMENT AGREEMENT</b> </u></h3>
+    <p><br />
+This Agreement (the “Agreement”) is executed at Abu Dhabi on this  2024/05/29  <br />
+<br />
+Between<br />
+<br />
+Mr. Ahmad Muneerd,/ Company<br />
+Tel : 4534534<br />
+Email: 0808@gmail.com<br />
+ (The First Party/Debtor),<br />
+<br />
+And<br />
+<br />
+Mr. / Company<br />
+<br />
+Email: <br />
+Tel; <br />
+(The Second Party/ Creditor) ,<br />
+<br />
+   Both Parties agree and sign the Agreement as below:<br />
+<br />
+a)	First Party owes AED 4800.00 to the Second Party accrued as part of trading ________ transactions, (the “Outstanding”). Whereas as per the terms of the settlement the agreed amount is ______-(the “Settlement <br />
+Amount”).<br />
+b)	Both Party agree to clear the Settlement Amount and it is clearly stated in the table below and it is the full and final settlement of the Outstanding. once the payments are completed as per the below table, this Agreement will be treated as full and final settlement, otherwise this Agreement will be null and void and the Second Party has the right to claim the full Outstanding Amount as per their books of account.<br />
+<br />
+c)	If any of the installment is not paid on or before the dates shown in the table, Second Party has the right to claim compensation / interest @12% to the with effect from ------------- and it is agreed by the First Party. Further, due the breach of this Agreement, if any legal action takes place to recover the Outstanding, the First Party is liable to pay all the costs, fees and lawyers fee of the Second Party. <br />
+<br />
+d)	This agreement is adopted and executed after due deliberations and with free will, consent and proper understanding.<br />
+<br />
+<br />
+<br />
+Payment schedule agreed<br />
+<br />
+<br />
+<br />
+	<br />
+<br />
+INTENDING TO BE LEGALLY BOUND, the parties have executed this Agreement.<br />
+<br />
+<br />
+Mr. $Ahmad Muneerd<br />
+For and on behalf of the First Party                      (Stamp)<br />
+<br />
+<br />
+<br />
+<br />
+     <br />
+Mr.client_name<br />
+For and on behalf of the Second Party                (Stamp)<br />
+<br />
+<br />
+<br />
+<br />
+     <br />
+   WITNESSED BY:<br />
+<br />
+<br />
+1.<br />
+<br />
+<br />
+2.     <br />
+<br />
+</p>
+</body>
+</html>
+
+<!-- DEBUG-VIEW ENDED 1 APPPATH/Views/invoice_recoveries/settlement_generate.php -->

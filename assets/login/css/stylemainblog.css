@@ -1,0 +1,71 @@
+.blog-head{
+	background-repeat: no-repeat;
+    height: 260px;
+    background-size: cover;
+    background-position: 0 34%;
+    box-shadow: inset 0 0 0 2000px #196fc64f;
+}
+.blog-head h2{
+	font-size: 32px;
+    font-weight: 600;
+    margin: 0;
+    padding: 8% 15vw;
+    color: #ffffff;
+    /* font-family: 'Fredoka One', cursive; */
+    font-family: roboto;
+    /* text-transform: uppercase; */
+    text-align: center;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+}
+.main-head{
+	font-size: 35px;
+    font-family: roboto;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: black;
+}
+.category p{
+	text-align: right;
+    margin: 16px 18px 20px 5px;
+    font-size: 10px;
+    text-transform: uppercase;
+    color: #a29a9a;
+}
+.main-content li{
+	display: flex;
+}
+.main-content{
+	line-height: 28px;
+}
+.about-card{
+	box-shadow: 0 8px 16px 0 rgba(0, 0, 0, 0.11), 0 6px 20px 0 rgba(0, 0, 0, 0.02);
+	padding: 10px;
+    margin: 20px 27px;
+
+}
+.desc-card h6{
+	font-size: 17px;
+    font-weight: bold;
+}
+.desc-card span p{
+	margin: 19px 0 8px 3px;
+}
+.desc-card .desc{
+	font-size: 12px;
+    text-align: justify;
+    line-height: 20px;
+    text-transform: uppercase;
+    color: #307cf3;
+}
+.auth-head:after {
+    content: "";
+    display: inline-block;
+    width: 35%;
+    background: #04adec;
+    height: 1px;
+    top: 11%;
+    position: absolute;
+    left: 137px;
+
+}

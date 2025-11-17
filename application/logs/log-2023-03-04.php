@@ -1,0 +1,60 @@
+<?php defined('BASEPATH') OR exit('No direct script access allowed'); ?>
+
+ERROR - 2023-03-04 11:31:36 --> Could not find the language line "approval"
+ERROR - 2023-03-04 11:31:39 --> Could not find the language line "#"
+ERROR - 2023-03-04 11:31:39 --> Could not find the language line "search"
+ERROR - 2023-03-04 11:31:39 --> Could not find the language line "#"
+ERROR - 2023-03-04 11:31:39 --> Could not find the language line "Priority"
+ERROR - 2023-03-04 11:31:39 --> Could not find the language line "#"
+ERROR - 2023-03-04 11:31:39 --> Could not find the language line "search"
+ERROR - 2023-03-04 11:31:43 --> Could not find the language line "approval"
+ERROR - 2023-03-04 11:31:43 --> Could not find the language line "approval"
+ERROR - 2023-03-04 11:31:44 --> Could not find the language line "approval"
+ERROR - 2023-03-04 11:31:44 --> Could not find the language line "approval"
+ERROR - 2023-03-04 11:31:48 --> Could not find the language line "approval"
+ERROR - 2023-03-04 11:31:49 --> Could not find the language line "approval"
+ERROR - 2023-03-04 11:31:52 --> Could not find the language line "approval"
+ERROR - 2023-03-04 11:42:59 --> Could not find the language line "approval"
+ERROR - 2023-03-04 11:43:00 --> Could not find the language line "approval"
+ERROR - 2023-03-04 11:43:13 --> Could not find the language line "approval"
+ERROR - 2023-03-04 11:43:13 --> Could not find the language line "#"
+ERROR - 2023-03-04 11:43:15 --> Could not find the language line "approval"
+ERROR - 2023-03-04 12:04:38 --> Could not find the language line "approval"
+ERROR - 2023-03-04 12:04:39 --> Could not find the language line "#"
+ERROR - 2023-03-04 12:04:41 --> Could not find the language line "approval"
+ERROR - 2023-03-04 12:22:10 --> Severity: error --> Exception: syntax error, unexpected '$email' (T_VARIABLE) D:\xampp\htdocs\wheeloffate.beveron.net\application\models\Tickets_model.php 532
+ERROR - 2023-03-04 12:22:33 --> Severity: error --> Exception: syntax error, unexpected 'else' (T_ELSE) D:\xampp\htdocs\wheeloffate.beveron.net\application\models\Tickets_model.php 533
+ERROR - 2023-03-04 12:22:59 --> Severity: error --> Exception: syntax error, unexpected 'return' (T_RETURN), expecting function (T_FUNCTION) or const (T_CONST) D:\xampp\htdocs\wheeloffate.beveron.net\application\models\Tickets_model.php 600
+ERROR - 2023-03-04 12:23:36 --> Severity: error --> Exception: syntax error, unexpected 'return' (T_RETURN), expecting function (T_FUNCTION) or const (T_CONST) D:\xampp\htdocs\wheeloffate.beveron.net\application\models\Tickets_model.php 600
+ERROR - 2023-03-04 12:55:44 --> Could not find the language line "approval"
+ERROR - 2023-03-04 12:55:44 --> Could not find the language line "#"
+ERROR - 2023-03-04 12:55:45 --> Could not find the language line "approval"
+ERROR - 2023-03-04 12:56:42 --> Could not find the language line "approval"
+ERROR - 2023-03-04 12:56:43 --> Severity: error --> Exception: Object of class stdClass could not be converted to string D:\xampp\htdocs\wheeloffate.beveron.net\system\database\DB_query_builder.php 2443
+ERROR - 2023-03-04 13:12:05 --> Could not find the language line "approval"
+ERROR - 2023-03-04 13:12:05 --> Severity: error --> Exception: Cannot use object of type stdClass as array D:\xampp\htdocs\wheeloffate.beveron.net\application\libraries\mails\Ticket_new_reply_to_staff.php 40
+ERROR - 2023-03-04 13:18:41 --> Could not find the language line "approval"
+ERROR - 2023-03-04 13:18:41 --> Severity: error --> Exception: Cannot use object of type stdClass as array D:\xampp\htdocs\wheeloffate.beveron.net\application\libraries\mails\Ticket_new_reply_to_staff.php 40
+ERROR - 2023-03-04 13:18:43 --> Could not find the language line "approval"
+ERROR - 2023-03-04 13:18:44 --> Could not find the language line "#"
+ERROR - 2023-03-04 13:18:45 --> Could not find the language line "approval"
+ERROR - 2023-03-04 13:18:55 --> Could not find the language line "approval"
+ERROR - 2023-03-04 13:19:07 --> Could not find the language line "approval"
+ERROR - 2023-03-04 13:19:07 --> Could not find the language line "#"
+ERROR - 2023-03-04 13:19:08 --> Could not find the language line "approval"
+ERROR - 2023-03-04 13:19:40 --> Could not find the language line "approval"
+ERROR - 2023-03-04 13:19:41 --> Severity: error --> Exception: Cannot use object of type stdClass as array D:\xampp\htdocs\wheeloffate.beveron.net\application\libraries\mails\Ticket_new_reply_to_staff.php 40
+ERROR - 2023-03-04 13:26:33 --> Could not find the language line "approval"
+ERROR - 2023-03-04 13:26:33 --> Severity: error --> Exception: Cannot use object of type stdClass as array D:\xampp\htdocs\wheeloffate.beveron.net\application\libraries\mails\Ticket_new_reply_to_staff.php 40
+ERROR - 2023-03-04 13:30:23 --> Could not find the language line "approval"
+ERROR - 2023-03-04 13:30:30 --> Could not find the language line "approval"
+ERROR - 2023-03-04 13:30:31 --> Could not find the language line "approval"
+ERROR - 2023-03-04 13:30:50 --> Could not find the language line "approval"
+ERROR - 2023-03-04 13:30:53 --> Could not find the language line "approval"
+ERROR - 2023-03-04 13:39:14 --> Could not find the language line "approval"
+ERROR - 2023-03-04 13:39:56 --> Could not find the language line "approval"
+ERROR - 2023-03-04 13:39:56 --> Could not find the language line "approval"
+ERROR - 2023-03-04 13:40:01 --> Could not find the language line "approval"
+ERROR - 2023-03-04 13:40:11 --> Could not find the language line "approval"
+ERROR - 2023-03-04 13:40:20 --> Could not find the language line "approval"
+ERROR - 2023-03-04 13:40:23 --> Could not find the language line "approval"

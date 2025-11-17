@@ -1,0 +1,15 @@
+.dispad{
+	padding: 0;
+}
+.dismarg{
+	margin: 0;
+}
+h1,h2,h3,h4,h5,h6,p{
+	margin: 0;
+	text-decoration: none;
+}
+a,a::hover,a::focus,a::active,input,input::focus{
+	outline: none;
+	color: inherit;
+	text-decoration: none !important;
+}

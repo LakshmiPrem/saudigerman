@@ -1,0 +1,104 @@
+@media (min-width: 1200px){
+.containerblog {
+    width: 1170px;
+}
+}
+@media (min-width: 992px){
+.containerblog {
+    width: 970px;
+}
+}
+@media (min-width: 768px){
+.row {
+/*    width: 750px;
+*/
+	margin-left: -11%;
+	margin-right: -11%;
+}
+}
+.containerblog {
+    padding-right: 15px;
+    padding-left: 15px;
+    margin-right: auto;
+    margin-left: auto;
+}
+.card .card-image .card-title {
+    color: #fff;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    max-width: 100%;
+    width: 100%;
+    padding: 15px 16px;
+    background: #42a5f5bd;
+}
+.card .card-title {
+    font-size: 16px;
+    font-weight: 600;
+}
+.admin-card-word{
+	color: #182535 !important;
+	font-size: 11px;
+}
+.card-bg{
+	background: #b5d6f324;
+}
+.fixed-action-btn {
+    position: relative;
+    right: 10px;
+    bottom: 2px;
+    padding-top: 15px;
+    margin-bottom: 0;
+    z-index: 997;
+}
+.flobtn{
+	width: 50px;
+	height: 50px;
+}
+.flowi{
+	line-height: 50px !important;
+}
+.fixed-action-btn.direction-left ul li, .fixed-action-btn.direction-right ul li{
+	display: inline-block;
+    margin: 0.5px 17px 7px 0px;
+}
+.btn-floating.halfway-fab {
+    position: absolute;
+    right: 9px;
+    bottom: -20px;
+}
+.fixed-action-btn.direction-left ul, .fixed-action-btn.direction-right ul{
+	text-align: right;
+    right: 54px;
+    top: 50%;
+    -webkit-transform: translateY(-50%);
+    transform: translateY(-50%);
+    height: 100%;
+    left: auto;
+    width: 500px;
+}
+.blogdes{
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  height: 100px;
+}
+.card .card-image .card-title{
+	text-transform: uppercase;
+    color: black;
+    font-size: 17px;
+    font-weight: 900;
+    transition: 0.5s ease;
+}
+h2 {
+    font-size: 2.56rem;
+    line-height: 29%;
+    margin: -0.626667rem 0 1.424rem 0;
+}
+.blue.lighten-1 {
+    background-color: #a9109fc7 !important;
+}
+.card:hover .card-image .card-title{
+	bottom: -23px;
+	transition: 0.3s ease;
+}
