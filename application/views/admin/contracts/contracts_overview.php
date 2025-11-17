@@ -291,6 +291,7 @@
   </div>
 <?php } ?>
       <?php
+       if($contract->type!=='po'){  
    if(count($contract_negotiations) > 0){?>     
       <div class="row">
         
@@ -333,6 +334,7 @@
   </div>
   </div>
   </div>
+<?php } ?>
 <?php } ?>
              <div class="row">
 			 <div class="col-md-12">
