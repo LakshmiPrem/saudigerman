@@ -28,7 +28,7 @@ class Contracts extends AdminController
         $type = $this->input->get('type') ?? 'contracts';
         $data['type'] = $type;
         
-
+		$data['clients']		=$this->clients_model->get('',['tblclients.active'=>1]);
         $data['expiring']               = $this->contracts_model->get_contracts_about_to_expire(get_staff_user_id());
         $data['count_active']           = count_active_contracts($type);
 
@@ -203,7 +203,7 @@ class Contracts extends AdminController
         $this->load->model('currencies_model');
         $data['base_currency'] = $this->currencies_model->get_base_currency();
         $data['types']         = $this->contracts_model->get_contract_types();
-		//$data['clients']		=$this->clients_model->get('',['tblclients.active'=>1]);
+		$data['clients']		=$this->clients_model->get('',['tblclients.active'=>1]);
 		
 		$data['statuses']  = $this->contracts_model-> get_contract_status();
 		$data['project_members'] = $this->contracts_model->get_contract_members($id);
