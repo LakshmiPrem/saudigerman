@@ -383,7 +383,7 @@
                      <a onclick="new_quick_contract();return false;" href="#" class="btn btn-info mright5 mtop12 test pull-right display-block">
                      <?php echo _l('new_contract'); ?></a> <?php } ?></div>
          <div class="clearfix"></div>
-      </div> 
+   
               
                <div class="panel_s mtop25">
                         <div class="panel-body">
