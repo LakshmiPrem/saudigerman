@@ -28,7 +28,7 @@ class Contracts extends AdminController
         $type = $this->input->get('type') ?? 'contracts';
         $data['type'] = $type;
         
-
+		$data['clients']		=$this->clients_model->get('',['tblclients.active'=>1]);
         $data['expiring']               = $this->contracts_model->get_contracts_about_to_expire(get_staff_user_id());
         $data['count_active']           = count_active_contracts($type);
 
