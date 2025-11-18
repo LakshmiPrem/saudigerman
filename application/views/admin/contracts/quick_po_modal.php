@@ -27,7 +27,7 @@
          </div>
 
               <div class="col-md-6">
-               <div class="form-group select-placeholder f_client_id">
+               <div class="form-group select-placeholder">
                    
 
                     <?php if($type=='contracts'){
@@ -38,19 +38,13 @@
                         $this->load->model('clients_model');
                         $clients=$this->clients_model->get('', [
                             'tblclients.active' => 1,
-                            'tblclients.ctype'  => 'po'
+                            'tblclients.ctype'  => $type
                         ]);
 
                     }
         
                     echo render_select('client',$clients,             
-                            array('userid', 'company'), 'client','',            
-                            array('data-none-selected-text' => _l('dropdown_non_selected_tex'),
-                                'data-live-search' => 'true',
-                                'data-width' => '100%',
-                                'class' => 'ajax-search select'
-                            )
-                        );
+                            array('userid', 'company'), 'client');
                     ?>
                 </div>
 
