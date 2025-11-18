@@ -1104,12 +1104,12 @@ $user_id = get_staff_user_id();
 $user_approval = null;
 $show_rejection_section = false;
 $allowed_by_addedfrom = false;
-
-// Check if current user is in contract_approvals
-foreach ($contract_approvals as $approval) {
-    if (isset($approval['addedfrom']) && (int)$approval['addedfrom'] === (int)$user_id) {
+ if (isset($contract->addedfrom) && (int)$contract->addedfrom == (int)$user_id) {
         $allowed_by_addedfrom = true;
     }
+// Check if current user is in contract_approvals
+foreach ($contract_approvals as $approval) {
+   
 
     if (isset($approval['staffid']) && (int)$approval['staffid'] === (int)$user_id) {
         $user_approval = $approval;
@@ -1121,7 +1121,7 @@ foreach ($contract_approvals as $approval) {
 
         // Check conditions to show rejection section
         if (
-            !in_array($status, ['signed', 'rejected']) && // not signed/rejected
+            !in_array($status, ['signed', 'rejected','reviewed']) && // not signed/rejected
             !empty($placeholder) &&                       // placeholder not empty
             $placeholder !== '[]' &&                      // placeholder not empty array
             $placeholder !== 'null' &&                    // placeholder not 'null' string
