@@ -73,8 +73,10 @@ ob_end_clean();
             <li><a href="<?php echo admin_url('dashboard/index/legal') ?>"><?php echo _l('legal_dashboard'); ?></a></li>
 			  <?php }?>
             <li><a href="<?php echo admin_url('dashboard/index/contract') ?>"><?php echo _l('contract_dashboard'); ?></a></li>
-                           <li><a href="<?php echo admin_url('dashboard/index/approval') ?>"><?php echo _l('approval_dashboard'); ?></a></li>
-
+              <li><a href="<?php echo admin_url('dashboard/index/po') ?>"><?php echo _l('po_dashboard'); ?></a></li>
+               <?php if(is_approver()){?>
+               <li><a href="<?php echo admin_url('dashboard/index/approval') ?>"><?php echo _l('approval_dashboard'); ?></a></li>
+          <?php }?>
            
           </ul>
         </li>

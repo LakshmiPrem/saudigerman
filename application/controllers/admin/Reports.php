@@ -5767,7 +5767,7 @@ public function expenses($type = 'simple_report')
                 //array_push($where, 'AND ' . db_prefix() . 'contracts.addedfrom=' . get_staff_user_id());
             }
 
-//    array_push($where, ' AND marked_as_signed=1');
+    array_push($where, ' AND tblcontracts.type="contracts"');
 
             $result = data_tables_init($aColumns, $sIndexColumn, $sTable, $join, $where, [db_prefix() . 'contracts.id', 'trash', 'client', 'hash', 'marked_as_signed', 'other_party', db_prefix() . 'contracts_status.statuscolor as statuscolor',]);
 
@@ -6570,13 +6570,14 @@ public function expenses($type = 'simple_report')
               //   $row[] = date('d M Y',strtotime($aRow['datecreated']));
 				 $number_cases = total_rows('tblprojects',array('clientid'=>$aRow['userid']));
             $number_legals = total_rows('tbltickets',array('userid'=>$aRow['userid']));  
-			 $number_contracts = total_rows('tblcontracts',array('client'=>$aRow['userid']));
+			 $number_contracts = total_rows('tblcontracts',array('client'=>$aRow['userid'],'type'=>'contracts'));
+              $number_pos = total_rows('tblcontracts',array('client'=>$aRow['userid'],'type'=>'po'));
 				$summary='';
 				if(get_option('enable_legaldashboard')==1){
 			$summary .='<a class="btn btn-info" style="border-radius: 12px;margin-right:7px;" title="Number Of Cases" href="' . admin_url('clients/client/' . $aRow['userid']) . '?group=projects">' . $number_cases. '</a>';
 				}
-			$summary .='<a class="btn btn-default" style="border-radius: 12px;margin-right:7px;" title="Number Of Legal Requests" href="' . admin_url('clients/client/' . $aRow['userid']) . '?group=tickets">' . $number_legals.' '._l('tickets').  '</a>';
-		//	$summary .='<a class="btn btn-warning" style="border-radius: 12px;" title="Number Of Contracts" href="' . admin_url('clients/client/' . $aRow['userid']) . '?group=contracts">' . $number_contracts. '</a>';
+			//$summary .='<a class="btn btn-default" style="border-radius: 12px;margin-right:7px;" title="Number Of Legal Requests" href="' . admin_url('clients/client/' . $aRow['userid']) . '?group=tickets">' . $number_legals.' '._l('tickets').  '</a>';
+			$summary .='<a class="btn btn-info" style="border-radius: 12px;" title="Number Of POs" href="' . admin_url('clients/client/' . $aRow['userid']) . '?group=contracts">' . $number_pos.' '._l('po'). '</a>';
 			$row[]=$summary;
 			$row[]='<a class="btn btn-warning" style="border-radius: 12px;" title="Number Of Contracts" href="' . admin_url('clients/client/' . $aRow['userid']) . '?group=contracts">' . $number_contracts.' '._l('contracts').  '</a>';
 		
@@ -6883,7 +6884,7 @@ if (!is_admin()) {
             die();
         }
     }
-	    public function contractapproval_report()
+	    public function contractapproval_report($rel_type='contract')
     {
         if ($this->input->is_ajax_request()) {
 
@@ -6906,9 +6907,13 @@ if (!is_admin()) {
             if ($custom_date_select != '') {
                 array_push($where, $custom_date_select);
             }*/
-
+            if ($rel_type != '') {
+             //   $rel_type  = $this->input->post('rel_type');
+               array_push($where, 'AND tblapprovals.rel_type = "'.$rel_type.'"'  );
+                
+            }
           
-            array_push($where, 'AND tblapprovals.rel_type = "contract"'  );
+           
 			array_push($where, 'AND tblapprovals.approval_status = 2'  );
 			
 	
@@ -7626,7 +7631,7 @@ if (!is_admin()) {
                 //array_push($where, 'AND ' . db_prefix() . 'contracts.addedfrom=' . get_staff_user_id());
             }
 
-
+            array_push($where, ' AND tblcontracts.type="contracts"');
 
             $result = data_tables_init($aColumns, $sIndexColumn, $sTable, $join, $where, [db_prefix() . 'contracts.id', 'trash', 'client', 'hash', 'marked_as_signed', 'other_party','is_payable','is_receivable', db_prefix() . 'contracts_status.statuscolor as statuscolor',]);
 
@@ -7768,7 +7773,7 @@ if ($aRow['is_receivable'] == 1) {
                 //array_push($where, 'AND ' . db_prefix() . 'contracts.addedfrom=' . get_staff_user_id());
             }
 
-
+            array_push($where, ' AND tblcontracts.type="contracts"');
 
             $result = data_tables_init($aColumns, $sIndexColumn, $sTable, $join, $where, [db_prefix() . 'contracts.id', 'trash', 'client', 'hash', 'marked_as_signed', 'other_party','is_payable','is_receivable', db_prefix() . 'contracts_status.statuscolor as statuscolor',]);
 
@@ -7874,6 +7879,7 @@ if ($aRow['is_receivable'] == 1) {
             }
 
    array_push($where, ' AND marked_as_signed=1 ');
+   array_push($where, ' AND tblcontracts.type="contracts"');
 
             $result = data_tables_init($aColumns, $sIndexColumn, $sTable, $join, $where, [db_prefix() . 'contracts.id', 'trash', 'client', 'hash', 'marked_as_signed', 'other_party', db_prefix() . 'contracts_status.statuscolor as statuscolor',]);
 
@@ -8003,7 +8009,11 @@ if ($aRow['is_receivable'] == 1) {
                 array_push($where, 'AND tblcontracts.contract_type =' . $contract_type );
                 
             }
-
+            if ($this->input->post('contract_po')) {
+                  $type  = $this->input->post('contract_po');
+                array_push($where, 'AND tblcontracts.type ="' . $type .'"' );
+                
+            }
             if (!has_permission('contracts', '', 'view')) {
                  array_push($where, ' AND ' . db_prefix() . 'contracts.id IN (SELECT contractid FROM ' . db_prefix() . 'contracts_assigned WHERE staff_id=' . get_staff_user_id() . ')');
                 //array_push($where, 'AND ' . db_prefix() . 'contracts.addedfrom=' . get_staff_user_id());
@@ -8017,13 +8027,24 @@ if ($aRow['is_receivable'] == 1) {
             $rResult = $result['rResult'];
             $j= 1 ;
             foreach ($rResult as $aRow) {
-
+                 if ($this->input->post('contract_po')) {
+                  $type  = $this->input->post('contract_po');
+              }else
+               { $type='po';
+                }
+                  if($type=='contracts'){
                 $approvals = $this->db->select('approval_heading_id, staffid, approval_status, dateapproved, approvaldue_date, rejected_reason')
                 ->where('rel_id', $aRow['id'])
                 ->where('rel_type', 'contract')
                 ->get(db_prefix() . 'approvals')
                 ->result_array();
-               
+               }else{
+                 $approvals = $this->db->select('approval_heading_id, staffid, approval_status, dateapproved, approvaldue_date, rejected_reason')
+                ->where('rel_id', $aRow['id'])
+                ->where('rel_type', 'po')
+                ->get(db_prefix() . 'approvals')
+                ->result_array();
+               }
 
 
                 $row = [];

@@ -646,7 +646,7 @@
 
    <?php }?>
    
-<?php if($dashtype!='legal' && $dashtype!='contract'&& $dashtype!='approval'){?>
+<?php if($dashtype!='legal' && $dashtype!='contract'&& $dashtype!='approval'&& $dashtype!='po'){?>
 <?php ######### first row Start ############## ?>
       <?php  $this->load->view('admin/dashboard/widgets/first_row'); ?>
 <?php ######### first row End  ############## ?>
@@ -667,7 +667,7 @@
 <?php ######### Third row End  ############## ?>
 <?php } ?>
    <?php ######### fourth row End  ############## ?>
-<?php if($dashtype=='legal' || $dashtype=='contract'){?>
+<?php if($dashtype=='legal' || $dashtype=='contract' || $dashtype=='po'){?>
 <?php $this->load->view('admin/dashboard/widgets/summary'); ?>
 <?php } ?>
 <style type="text/css">

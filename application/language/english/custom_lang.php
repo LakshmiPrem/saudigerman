@@ -3332,5 +3332,8 @@ $lang['po_summary_heading'] = 'Purchase Order Summary';
 $lang['po_sign_preview'] = 'PO Preview';
 $lang['upload_po'] = 'Upload PO';
 $lang['add_new'] = 'Add New';
-$lang['po'] = 'PO';
+$lang['po'] = 'P O';
+$lang['po_approvals']='Approvals';
+$lang['po_approval_await']='PO Awaiting Approval';
+$lang['po_dashboard']='PO Dashboard';
 

@@ -419,6 +419,7 @@ class Dashboard_model extends App_Model
            $number_cases11 = $this->db->get()->num_rows();
 		 $this->db->select('*');
 		$this->db->from(db_prefix() . 'contracts');
+        $this->db->where('type','contracts');
 			$this->db->where('marked_as_signed',1);
 			$this->db->or_where('signed',1);
             $this->db->where('acceptance_date>=',$q);
@@ -464,7 +465,7 @@ class Dashboard_model extends App_Model
                                $res .=' <div class="col-sm-3">
                             <div class="card"  style="box-shadow: 0 2px 5px 0 rgba(0, 123, 255, 0.80), 0 2px 10px 0 rgba(0, 0, 0, 0.62); padding: 10px; margin: 8px; height: 78px;"  >
                                 <div class="card-body">
-                                    <h4 class="card-title" style="text-align:center"><strong>'.get_contracttype_name_by_id($c_type['type']).'  <br>'.total_rows('tblcontracts',['contract_type'=>$c_type['type']]).'</strong></h4>
+                                    <h4 class="card-title" style="text-align:center"><strong>'.get_contracttype_name_by_id($c_type['type']).'  <br>'.total_rows('tblcontracts',['contract_type'=>$c_type['type'],'type'=>"contracts"]).'</strong></h4>
                             
                                 </div>
                             </div>

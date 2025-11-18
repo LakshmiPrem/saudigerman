@@ -10,11 +10,10 @@
                <?php if(has_permission('contracts','','view')|| has_permission('contracts', '', 'view_own')){?>
             <li style="background-color: #a5dee673;border: #77c6e1 1px solid;border-radius: 6px;"><a data-toggle="pill" href="#menu11" onclick="load_contract_data(1); return false;" style="color:#000;"><?php echo _l('contracts') ?></a>
             </li>
-            <li style="background-color: #a5dee673;border: #77c6e1 1px solid;border-radius: 6px;"><a data-toggle="pill" href="#menu11po" onclick="load_po_data(1); return false;" style="color:#000;"><?php echo _l('purchase_order') ?></a>
+           
+             <li style="background-color: #a5dee673;border: #77c6e1 1px solid;border-radius: 6px;"><a data-toggle="pill" href="#menu11approve" onclick="load_approval_data(1); return false;" style="color:#000;"><?php echo _l('approvals') ?></a>
             </li>
             
-            <li style="background-color: #a5dee673;border: #77c6e1 1px solid;border-radius: 6px;"><a data-toggle="pill" href="#menu11approve" onclick="load_approval_data(1); return false;" style="color:#000;"><?php echo _l('approvals') ?></a>
-            </li>
              <li style="background-color: #a5dee673;border: #77c6e1 1px solid;border-radius: 6px;"><a data-toggle="pill" href="#menu11receiv" onclick="matter_receivable_agreement_report(); return false;" style="color:#000;"><?php echo _l('receivable_contracts') ?></a>
                <li style="background-color: #a5dee673;border: #77c6e1 1px solid;border-radius: 6px;"><a data-toggle="pill" href="#menu11pay" onclick="matter_payable_agreement_report(); return false;" style="color:#000;"><?php echo _l('payable_contracts') ?></a>
 		   <li style="background-color: #a5dee673;border: #77c6e1 1px solid;border-radius: 6px;"><a data-toggle="pill" href="#menu11sign" onclick="matter_signed_agreement_report(); return false;"style="color:#000;"><?php echo _l('signed_contracts') ?></a>
@@ -23,6 +22,7 @@
               <?php if(is_approver()){
               	 $total_ticketapprove = total_rows(db_prefix().'approvals',array('staffid'=>get_staff_user_id(),'rel_type'=>'ticket','approval_status'=>2));
 	$total_contractapprove = total_rows(db_prefix().'approvals',array('staffid'=>get_staff_user_id(),'rel_type'=>'contract','approval_status'=>2));
+  
               ?>
               <?php if($total_ticketapprove>0){ ?>
               <li class="hide" <?php if($confirmapproval=='legal'){ ?> class="active" <?php } ?> style="background-color: #a5dee673;border: #77c6e1 1px solid;border-radius: 6px;"><a data-toggle="pill" href="#menu5" onclick="load_ticketapprover_report();return false;"><?php echo _l('legal_approval_await') ?></a></li>
@@ -30,9 +30,27 @@
 			 <?php if($total_contractapprove>0){?>
               <li <?php if($confirmapproval=='contract'){ ?> class="active" <?php } ?> style="background-color: #a5dee673;border: #77c6e1 1px solid;border-radius: 6px;"><a data-toggle="pill" href="#menu6" onclick="load_contractapprover_report();return false;" style="color:#000;"><?php echo _l('contract_approval_await') ?></a></li>
               <?php } ?>
+
+            
               <?php } ?>
               <?php } ?>
+               <li style="background-color: #a5dee673;border: #77c6e1 1px solid;border-radius: 6px;"><a data-toggle="pill" href="#menu7" onclick="load_summary_data('<?=$dashtype?>');return false;" style="color:#000;"><?php echo _l('total_summary') ?></a></li>
 			 <?php } ?>
+        <?php if($dashtype=='po'){?>
+           <li style="background-color: #a5dee673;border: #77c6e1 1px solid;border-radius: 6px;"><a data-toggle="pill" href="#menu11po" onclick="load_po_data(1); return false;" style="color:#000;"><?php echo _l('purchase_order') ?></a>
+            </li>
+            <li style="background-color: #a5dee673;border: #77c6e1 1px solid;border-radius: 6px;"><a data-toggle="pill" href="#menu11approvepo" onclick="po_approval_report(); return false;" style="color:#000;"><?php echo _l('po_approvals') ?></a>
+            </li>
+              <?php if(is_approver()){
+ 
+    $total_poapprove = total_rows(db_prefix().'approvals',array('staffid'=>get_staff_user_id(),'rel_type'=>'po','approval_status'=>2));
+              ?>
+   
+               <?php if($total_poapprove>0){?>
+              <li <?php if($confirmapproval=='po'){ ?> class="active" <?php } ?> style="background-color: #a5dee673;border: #77c6e1 1px solid;border-radius: 6px;"><a data-toggle="pill" href="#menu6po" onclick="load_contractapprover_report('po');return false;" style="color:#000;"><?php echo _l('po_approval_await') ?></a></li>
+              <?php } ?>
+              <?php } ?>
+           <?php } ?>
 			 <?php if($dashtype=='legal'){?>
              <li style="background-color:#a5dee673;color:black;border: #77c6e1 1px solid;border-radius: 6px;"><a data-toggle="pill" href="#menu1" onclick="load_project_data(1); return false;"><?php echo _l('projects') ?></a></li>
           
@@ -43,7 +61,7 @@
              <?php if(has_permission('projects','','view')){?>
               <li style="background-color: #a5dee673;border: #77c6e1 1px solid;border-radius: 6px;"><a data-toggle="pill" href="#menu4" onclick="load_oppositeparty_data(1);return false;" style="color:#000;"><?php echo _l('opposite_parties') ?></a></li>
               <?php } ?>
-             <li style="background-color: #a5dee673;border: #77c6e1 1px solid;border-radius: 6px;"><a data-toggle="pill" href="#menu7" onclick="load_summary_data('<?=$dashtype?>');return false;" style="color:#000;"><?php echo _l('total_summary') ?></a></li>
+            
           
          </ul>
 
@@ -346,7 +364,7 @@
                         <?php } ?>
                     </select>
                 </div>
-                 <div class="col-md-2">
+                 <div class="col-md-2 hide">
              <label for="report-to" class="control-label"><?php echo _l('receivable_payable'); ?></label>
                                        <select class="form-control selectpicker" id="in_out" name="in_out" >
                                              <option value=""><?=_l('receivable_payable')?></option>
@@ -709,33 +727,25 @@
 
 
            </div>
-           
-           
-           
-           <!------- Contracts approval------------------------------------------------------------------>
+            <!------- Contracts approval------------------------------------------------------------------>
            <div id="menu11approve" class="tab-pane fade">
             <hr/>
                         <div class="row">
          
-         <div class="col-md-2 hide">
-            <div class="form-group">
-               
-                <?php echo render_select('contract_typerec1',$contract_types,array('id','name'),'contract_type','');?>
-            </div>
-         </div>
+        
          <div class="col-md-2">
             <div class="form-group">
-                <?php echo render_select('client_id22rec1',$clients_,array('userid','company'),'customers','');?>
+                <?php echo render_select('client_id22app',$clients_,array('userid','company'),'customers','');?>
             </div>
          </div>
          
-         <?php echo form_hidden('months-reportc-rec','custom'); ?>
+         <?php echo form_hidden('months-reportc-app','custom'); ?>
          <div class="col-md-2">
           <label for="report-fromc" class="control-label"><?php echo _l('report_sales_from_date'); ?></label>
           <div class="input-group date">
               <?php $beginMonth = date('01/m/Y');
                     $endMonth   = date('t/m/Y'); ?>
-             <input type="text" class="form-control datepicker" id="report-fromc-rec1" name="report-fromc-rec1" value="">
+             <input type="text" class="form-control datepicker" id="report-fromc-app" name="report-fromc-app" value="">
              <div class="input-group-addon">
                 <i class="fa fa-calendar calendar-icon"></i>
              </div>
@@ -744,7 +754,7 @@
        <div class="col-md-2">
           <label for="report-to" class="control-label"><?php echo _l('report_sales_to_date'); ?></label>
           <div class="input-group date">
-             <input type="text" class="form-control datepicker" id="report-toc-rec1" name="report-toc-rec1" value="">
+             <input type="text" class="form-control datepicker" id="report-toc-app" name="report-toc-app" value="">
              <div class="input-group-addon">
                 <i class="fa fa-calendar calendar-icon"></i>
              </div>
@@ -752,7 +762,7 @@
        </div>
  <div class="col-md-2">
     <label for="report-to" class="control-label"><?php echo _l('status'); ?></label>
-    <select class="form-control selectpicker" id="contract_statusrec" name="contract_statusrec1">
+    <select class="form-control selectpicker" id="contract_statusapp" name="contract_statusapp">
         <option value="">Status</option>
         <?php foreach($contract_statuses as $proj_statuse){ ?>
             <option value="<?= $proj_statuse['id']; ?>" 
@@ -764,13 +774,12 @@
 </div>
                  <div class="col-md-2 hide">
              <label for="report-to" class="control-label"><?php echo _l('receivable_payable'); ?></label>
-                                       <select class="form-control selectpicker" id="in_outrec" name="in_outrec" >
+                                       <select class="form-control selectpicker" id="contract_po" name="contract_po" >
                                              <option value=""><?=_l('receivable_payable')?></option>
                                             
-                                                <option value="1" selected="true"><?=_l('is_receivable')?></option>
-                                                 <option value="2"><?=_l('is_payable')?></option>
-                                                  <option value="3"><?=_l('contract_trash')?></option>
-                                            
+                                                <option value="contracts" selected="true"><?=_l('contracts')?></option>
+                                                 <option value="po"><?=_l('po')?></option>
+                                                                                            
                                        </select>
                                     </div>
      
@@ -792,6 +801,113 @@
                   <th style="width:10%;"><?php echo _l('other_party'); ?></th>
                   <!-- <th><?php echo _l('agreement_type'); ?></th> -->
                   <th style="width:5%;"><?php echo _l('contract_value'); ?></th>
+                  <th><?php echo _l('description'); ?></th>
+               
+                  <th style="width:5%;"><?php echo _l('status'); ?></th>
+                  <th class="not_visible"><?php echo _l('account_status'); ?></th>
+               </tr>
+            </thead>
+            <tbody>
+               <tr>
+                  
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                  
+                  <td></td>
+                  <td></td>
+                  <td></td>
+               </tr>
+            </tbody>
+          
+         </table>
+                       </div>
+                   </div>
+       
+
+
+           </div>
+       
+
+
+<!------- Contracts approval ------------------------------------------------------------------>          
+           
+           <!------- PO approval------------------------------------------------------------------>
+           <div id="menu11approvepo" class="tab-pane fade">
+            <hr/>
+                        <div class="row">
+         
+        
+         <div class="col-md-2">
+            <div class="form-group">
+                <?php echo render_select('client_id22app1',$clients_,array('userid','company'),'customers','');?>
+            </div>
+         </div>
+         
+         <?php echo form_hidden('months-reportc-app1','custom'); ?>
+         <div class="col-md-2">
+          <label for="report-fromc" class="control-label"><?php echo _l('report_sales_from_date'); ?></label>
+          <div class="input-group date">
+              <?php $beginMonth = date('01/m/Y');
+                    $endMonth   = date('t/m/Y'); ?>
+             <input type="text" class="form-control datepicker" id="report-fromc-app1" name="report-fromc-app1" value="">
+             <div class="input-group-addon">
+                <i class="fa fa-calendar calendar-icon"></i>
+             </div>
+          </div>
+       </div>
+       <div class="col-md-2">
+          <label for="report-to" class="control-label"><?php echo _l('report_sales_to_date'); ?></label>
+          <div class="input-group date">
+             <input type="text" class="form-control datepicker" id="report-toc-app1" name="report-toc-app1" value="">
+             <div class="input-group-addon">
+                <i class="fa fa-calendar calendar-icon"></i>
+             </div>
+          </div>
+       </div>
+ <div class="col-md-2">
+    <label for="report-to" class="control-label"><?php echo _l('status'); ?></label>
+    <select class="form-control selectpicker" id="contract_statusapp1" name="contract_statusrapp1">
+        <option value="">Status</option>
+        <?php foreach($contract_statuses as $proj_statuse){ ?>
+            <option value="<?= $proj_statuse['id']; ?>" 
+                <?= ($proj_statuse['id'] == 1) ? 'selected' : ''; ?>>
+                <?= $proj_statuse['name']; ?>
+            </option>
+        <?php } ?>
+    </select>
+</div>
+                 <div class="col-md-2 hide">
+             <label for="report-to" class="control-label"><?php echo _l('receivable_payable'); ?></label>
+                                       <select class="form-control selectpicker" id="contract_po1" name="contract_po1" >
+                                             <option value=""><?=_l('receivable_payable')?></option>
+                                            
+                                                <option value="contracts" ><?=_l('contracts')?></option>
+                                                 <option value="po" selected="true"><?=_l('po')?></option>
+                                                                                            
+                                       </select>
+                                    </div>
+     
+         <div class="clearfix"></div>
+      </div> 
+              
+               <div class="panel_s mtop25">
+                        <div class="panel-body">
+               <table class="table table-po-approval-report  scroll-responsive" id="">                    
+          
+         <thead>
+               <tr>
+                  <th style="width:2%;" class="not_sortable"><?php echo _l('#'); ?></th>
+                   
+                 <th style="width:10%;"><?php echo _l('hearing_list_subject'); ?></th>
+                  <!-- <th><?php echo _l('purchaser'); ?></th>
+                  <th><?php echo _l('contract_department'); ?></th> -->
+                  <th style="width:10%;"><?php echo _l('client'); ?></th>
+                  <th style="width:10%;"><?php echo _l('other_party'); ?></th>
+                  <!-- <th><?php echo _l('agreement_type'); ?></th> -->
+                  <th style="width:5%;" class="not_visible not-export"><?php echo _l('contract_value'); ?></th>
                   <th><?php echo _l('description'); ?></th>
                
                   <th style="width:5%;"><?php echo _l('status'); ?></th>
@@ -1258,6 +1374,12 @@
             </div>
                           <!---- Legal Approvaal------------------------>
       <div id="menu6" class="tab-pane fade <?php if(is_approver() && $confirmapproval=='contract') echo 'in active';?>">
+             <hr>
+    
+            <?php $this->load->view('admin/reports/includes/contractapprovals_report_table_html'); ?>
+
+            </div>
+        <div id="menu6po" class="tab-pane fade <?php if(is_approver() && $confirmapproval=='po') echo 'in active';?>">
              <hr>
     
             <?php $this->load->view('admin/reports/includes/contractapprovals_report_table_html'); ?>
