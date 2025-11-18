@@ -1132,8 +1132,16 @@ foreach ($contract_approvals as $approval) {
     }
 }
 
-// Get first approver for auto-selection
-$first_approver = !empty($contract_approvals) ? $contract_approvals[0] : null;
+// Find the first approver that doesn't have approval_heading_id == 11
+$first_approver = null;
+if (!empty($contract_approvals)) {
+    foreach ($contract_approvals as $approver) {
+        if ($approver['approval_heading_id'] != 11) {
+            $first_approver = $approver;
+            break;
+        }
+    }
+}
 ?>
 
 <?php if ($allowed_by_addedfrom) { ?>
