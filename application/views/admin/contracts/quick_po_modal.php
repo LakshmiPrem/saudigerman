@@ -34,7 +34,7 @@
                         $this->load->model('clients_model');
                         $clients=$this->clients_model->get('', [
                             'tblclients.active' => 1,
-                            'tblclients.ctype'  => $type
+                            'tblclients.ctype'  => 'po'
                         ]);
 
                     echo render_select('client',$clients,             
