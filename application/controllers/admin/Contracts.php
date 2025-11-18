@@ -2984,69 +2984,99 @@ public function save_signature()
         die(json_encode(['error' => 'PDF source file not found: ' . $sourcePath]));
     }
 
-    $pageCount = $pdf->setSourceFile($sourcePath);
-    $scale = 0.264583; // 1px ≈ 0.264583 mm
-    
-    // Get staff name if needed
-    $staff_name = '';
-    if ($inc_app_name) {
-        $staff_name = get_staff_full_name($user_id);
-    }
-    
-    // Get current timestamp if needed
-    $timestamp = '';
-    if ($inc_time_stamp) {
-        $timestamp = date('Y-m-d H:i:s');
-    }
+$pageCount = $pdf->setSourceFile($sourcePath);
+$scale = 0.264583; // 1px ≈ 0.264583 mm
 
-    // Define dimensions
-    $signatureWidth = 25; // mm
-    $signatureHeight = 10; // mm (approximate height of signature)
-    $nameHeight = 5; // mm (height for name text)
-    $timestampHeight = 4; // mm (height for timestamp text)
-    $spacing = 1; // mm (spacing between elements)
+// Get staff name if needed
+$staff_name = '';
+if ($inc_app_name) {
+    $staff_name = get_staff_full_name($user_id);
+}
 
-    for ($page = 1; $page <= $pageCount; $page++) {
-        $tplIdx = $pdf->importPage($page);
-        $pdf->AddPage();
-        $pdf->useTemplate($tplIdx, 0, 0, 210, 297);
+// Get current timestamp if needed
+$timestamp = '';
+if ($inc_time_stamp) {
+    $timestamp = date('Y-m-d H:i:s');
+}
 
-        // Place the signature on coordinates
-        if (is_array($placeholder)) {
-            foreach ($placeholder as $coord) {
-                if ($coord['page'] === 'all' || (int)$page === (int)$coord['page']) {
-                    $x = $coord['x'] * $scale;
-                    $y = $coord['y'] * $scale;
+// Define dimensions to match the box size (150px × 80px from CSS)
+$boxWidth = 150 * $scale;  // ≈ 39.7 mm
+$boxHeight = 80 * $scale;  // ≈ 21.2 mm
 
-                    // 1. Signature at the original position
-                    $pdf->Image(
-                        FCPATH . 'uploads/contracts/' . $contract->id . '/' . $filePath,
-                        $x, $y, 
-                        $signatureWidth
-                    );
+// Signature takes 60% of box height to leave room for text
+$signatureHeight = $boxHeight * 0.60; 
+
+$nameHeight = 4; // mm
+$timestampHeight = 3.5; // mm
+$spacing = 0.5; // mm
+
+for ($page = 1; $page <= $pageCount; $page++) {
+    $tplIdx = $pdf->importPage($page);
+    $pdf->AddPage();
+    $pdf->useTemplate($tplIdx, 0, 0, 210, 297);
+
+    // Place the signature on coordinates
+    if (is_array($placeholder)) {
+        foreach ($placeholder as $coord) {
+            if ($coord['page'] === 'all' || (int)$page === (int)$coord['page']) {
+                $x = $coord['x'] * $scale;
+                $y = $coord['y'] * $scale;
+
+                // ⭐ Calculate signature width to fit inside box
+                $signatureWidth = $boxWidth * 0.90; // 90% of box width to ensure it fits inside
+                
+                // ⭐ Adjust X position - move significantly LEFT to start from left edge of box
+                $imageX = $x - 15; // Move 2mm to the RIGHT from box edge (small padding)
+                $imageY = $y + 2; // Move 1mm DOWN from top (small padding)
+
+                // 1. Signature - properly sized and positioned INSIDE the box
+                $pdf->Image(
+                    FCPATH . 'uploads/contracts/' . $contract->id . '/' . $filePath,
+                    $imageX,  // Start from left side of box
+                    $imageY,  // Start from top of box
+                    $signatureWidth,  // ⭐ Reduced width to fit inside box
+                    $signatureHeight,  // Height
+                    '',
+                    '',
+                    '',
+                    false,
+                    300,
+                    '',
+                    false,
+                    false,
+                    0,
+                    false,
+                    false,
+                    true // Keep aspect ratio
+                );
+
+                // Position text below signature, aligned to left
+                $currentY = $y + $signatureHeight + 1;
+
+                // 2. Add approver name below signature - aligned LEFT inside box
+                if ($inc_app_name && !empty($staff_name)) {
+                    $pdf->SetFont('Arial', 'B', 8);
+                    $pdf->SetTextColor(0, 0, 0);
+                    $textX = $x - 5; // ⭐ Same left alignment as signature
+                    $pdf->SetXY($textX, $currentY);
                     
-                    $currentY = $y + $signatureHeight + $spacing;
+                    $pdf->Cell($boxWidth - 4, $nameHeight, $staff_name, 0, 0, 'L');
                     
-                    // 2. Add approver name below signature if requested
-                    if ($inc_app_name && !empty($staff_name)) {
-                        $pdf->SetFont('Arial', 'B', 9);
-                        $pdf->SetTextColor(0, 0, 0);
-                        $pdf->SetXY($x, $currentY);
-                        $pdf->Cell($signatureWidth, $nameHeight, $staff_name, 0, 0, 'L');
-                        $currentY += $nameHeight + $spacing;
-                    }
-                    
-                    // 3. Add timestamp below name (or below signature if no name) if requested
-                    if ($inc_time_stamp && !empty($timestamp)) {
-                        $pdf->SetFont('Arial', '', 8);
-                        $pdf->SetTextColor(80, 80, 80);
-                        $pdf->SetXY($x, $currentY);
-                        $pdf->Cell($signatureWidth, $timestampHeight, $timestamp, 0, 0, 'L');
-                    }
+                    $currentY += $nameHeight + $spacing;
+                }
+
+                // 3. Add timestamp below name - aligned LEFT inside box
+                if ($inc_time_stamp && !empty($timestamp)) {
+                    $pdf->SetFont('Arial', '', 7);
+                    $pdf->SetTextColor(80, 80, 80);
+                    $textX = $x - 5; // ⭐ Same left alignment as signature
+                    $pdf->SetXY($textX, $currentY);
+                    $pdf->Cell($boxWidth - 4, $timestampHeight, $timestamp, 0, 0, 'L');
                 }
             }
         }
     }
+}
 
     $signedPath = 'uploads/contracts/' . $contract_id . '/signed_' . $contract_id . '_' . $user_id . '.pdf';
     $pdf->Output(FCPATH . $signedPath, 'F');
