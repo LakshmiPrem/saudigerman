@@ -15,7 +15,7 @@ application/logs/*
 !application/logs/index.html
 !application/logs/.htaccess
 /vendor/
-
+application/vendor/*
 #ignore files
 
 *.txt
@@ -38,3 +38,4 @@ index.php
 application/config/app-config.php
 application/config/app-config.php
 application/config/app-config.php
+

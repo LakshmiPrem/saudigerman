@@ -190,8 +190,8 @@ foreach ($rResult as $aRow) {
 
     $subjectOutput .= '<div class="row-options">';
 
-    $subjectOutput .= '<a href="' . site_url('contract/' . $aRow['id'] . '/' . $aRow['hash']) . '" target="_blank">' . _l('view') . '</a>';
-
+    //$subjectOutput .= '<a href="' . site_url('contract/' . $aRow['id'] . '/' . $aRow['hash']) . '" target="_blank">' . _l('view') . '</a>';
+    $subjectOutput .= '<a href="' . admin_url('contracts/contract_external_review/' . $aRow['id'] ) . '" target="_blank">' . _l('view') . '</a>';
     if (has_permission('contracts', '', 'edit')) {
         $subjectOutput .= ' | <a href="' . admin_url('contracts/contract/' . $aRow['id']) . '?tab=tab_content">' . _l('edit') . '</a>';
     }

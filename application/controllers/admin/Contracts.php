@@ -581,14 +581,14 @@ class Contracts extends AdminController
         }
         $response = $this->contracts_model->delete($id);
         if ($response == true) {
-            set_alert('success', _l('deleted', _l('contract')));
+            set_alert('success', _l('Deleted'));
         } else {
-            set_alert('warning', _l('problem_deleting', _l('contract_lowercase')));
+            set_alert('warning', _l('problem_deleting'));
         }
         if (strpos($_SERVER['HTTP_REFERER'], 'clients/') !== false) {
             redirect($_SERVER['HTTP_REFERER']);
         } else {
-            redirect(admin_url('contracts'));
+             redirect($_SERVER['HTTP_REFERER']);
         }
     }
 
@@ -1370,7 +1370,7 @@ $templateProcessor->setImageValue('Signature', function () {
                     }
                     
                         $success = true;
-                        $message = _l('added_successfully', _l('contract'));
+                        $message = _l('Added_successfully');
                     }
                     echo json_encode([
                         'success' => $success,
@@ -3675,9 +3675,10 @@ public function contract_external_review($id=''){
 $this->load->view('admin/contracts/contract_external_review', $data);
 }
 
-public function review_pdf($id)
+public function review_pdf($id,$type)
 {
     $staff_id = get_staff_user_id();
+    $type = ($type == 'contracts') ? 'contract' : $type;
 
     // Update approval_status = 6 for this contract and staff
     $this->db->where('rel_id', $id);
@@ -3690,7 +3691,7 @@ public function review_pdf($id)
      $contract = $this->db->where('id', $id)->get('tblcontracts')->row();
     $all_approvers = $this->db->where([
         'rel_id'   => $id,
-        'rel_type' => 'contract'
+        'rel_type' => $type
     ])->order_by('id', 'ASC')->get('tblapprovals')->result_array();// Find and notify next approver
 $next_approver = null;
 $found_current = false;
@@ -3715,25 +3716,35 @@ if ($next_approver) {
         
         if ($is_external_review) {
             $contract_link = admin_url('contracts/contract_external_review/' . $id);
-            $email_subject = _l('Contract Ready for Your Review');
+            if($type=='contract'){
+                $email_subject = _l('Contract Ready for Your Review');
+            }else{
+                $email_subject = _l($type.' Ready for Your Review');
+            }
+            
         } else {
             $contract_link = admin_url('contracts/contract/' . $id);
-            $email_subject = _l('Contract Ready for Your Signature');
+            if($type=='contract'){
+                $email_subject = _l('Contract Ready for Your Signature');
+            }else{
+                $email_subject = _l($type.' Ready for Your Signature');
+            }
+            
         }
         
         $signer_name = get_staff_full_name($staff_id);
         
         $message = "Hello " . $next_staff->firstname . ",<br><br>";
-        $message .= "The contract <strong>" . $contract->subject . "</strong> has been signed by " . $signer_name . ".<br><br>";
+        $message .= "The '.$type.' <strong>" . $contract->subject . "</strong> has been signed by " . $signer_name . ".<br><br>";
         
         if ($is_external_review) {
-            $message .= "It is now your turn to review the contract.<br><br>";
+            $message .= "It is now your turn to review the '.$type.'.<br><br>";
         } else {
-            $message .= "It is now your turn to review and sign the contract.<br><br>";
+            $message .= "It is now your turn to review and sign the '.$type.'.<br><br>";
         }
         
         $message .= "Please click the link below to view ";
-        $message .= $is_external_review ? "the contract:<br>" : "and sign the contract:<br>";
+        $message .= $is_external_review ? "the '.$type.':<br>" : "and sign the '.$type.' :<br>";
         $message .= '<a href="' . $contract_link . '">' . $contract_link . '</a><br><br>';
         $message .= "Thank you.";
         
@@ -3746,10 +3757,11 @@ if ($next_approver) {
 }
 
     // Optional: Add activity log
+    if($type=='contract')
     log_activity('Contract PDF reviewed by staff ID: ' . $staff_id . ' for contract ID: ' . $id);
 
     // Set success message
-    set_alert('success', 'You have successfully reviewed this contract.');
+    set_alert('success', 'You have successfully reviewed this '.$type.'.');
 
     // Redirect back to the review page
     redirect(admin_url('contracts/contract_external_review/' . $id));

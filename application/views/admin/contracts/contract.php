@@ -50,7 +50,7 @@ foreach ($contract_approvals as $approval) {
             $approval['status'] !== 'signed' && 
             $approval['status'] !== 'rejected' &&
             isset($approval['approval_heading_id']) && 
-            (int)$approval['approval_heading_id'] == 11) {
+            (int)$approval['approval_heading_id'] === 11) {
             $show_review_button = true;
         }
         break;
@@ -132,99 +132,42 @@ $can_sign = false;
 $can_stamp = false;
 $is_current_signer = false;
 
-// Get addedfrom user - initialize
-$addedfrom_user_id = 0;
-
 // Sort approvers by their order
 $sorted_approvals = $contract_approvals;
 
-// Find the addedfrom user and check if they've signed
-$addedfrom_signed = false;
-$addedfrom_found = false;
+// Use normal order logic for all approvers
+$current_position = -1;
+$user_position = -1;
 
-foreach ($sorted_approvals as $approval) {
-    // Get addedfrom from approval array (should be same in all records)
-    if (isset($approval['addedfrom']) && (int)$approval['addedfrom'] > 0 && $addedfrom_user_id == 0) {
-        $addedfrom_user_id = (int)$approval['addedfrom'];
-    }
-    
+foreach ($sorted_approvals as $index => $approval) {
     $staffid = isset($approval['staffid']) ? (int)$approval['staffid'] : 0;
     $status = isset($approval['status']) ? strtolower($approval['status']) : '';
     
-    // Check if this is the addedfrom user and their signing status
-    if ($addedfrom_user_id > 0 && $staffid == $addedfrom_user_id) {
-        
-        $addedfrom_found = true;
-        // Consider both 'signed' and 'reviewed' as completed
-        if ($status == 'signed' || $status == 'reviewed') {
-            $addedfrom_signed = true;
-        }
+    // Track user's position
+    if ($staffid == $user_id) {
+        $user_position = $index;
+    }
+    
+    // Find the first unsigned/unreviewed position
+    if ($current_position == -1 && !in_array($status, ['signed', 'reviewed', 'rejected'])) {
+        $current_position = $index;
     }
 }
 
-// Now check if current user can sign
-// Logic: If addedfrom user exists and hasn't signed/reviewed, only they can sign
-if ($addedfrom_user_id > 0 && $addedfrom_found && !$addedfrom_signed) {
-    // Only the creator (addedfrom user) can sign
-    // print_r($user_id);
-    if ($user_id == $addedfrom_user_id) {
-        foreach ($sorted_approvals as $approval) {
-            $staffid = isset($approval['staffid']) ? (int)$approval['staffid'] : 0;
-            
-            if ($staffid == $user_id) {print_r('inside');
-                $placeholder = isset($approval['sign_placeholder']) ? trim($approval['sign_placeholder']) : '';
-                $status = isset($approval['status']) ? strtolower($approval['status']) : '';
-                
-                if (
-                    $status !== 'signed' &&
-                    $status !== 'reviewed' &&
-                    $status !== 'rejected' &&
-                    !empty($placeholder) &&
-                    $placeholder !== '[]' &&
-                    $placeholder !== 'null'
-                ) {
-                    $can_sign = true;
-                    $is_current_signer = true;
-                }
-                break;
-            }
-        }
-    }
-} else {
-    // Creator has signed/reviewed or doesn't exist - use normal order logic
-    $current_position = -1;
-    $user_position = -1;
+// Check if user can sign based on their position
+if ($user_position !== -1 && $user_position == $current_position) {
+    $approval = $sorted_approvals[$user_position];
+    $placeholder = isset($approval['sign_placeholder']) ? trim($approval['sign_placeholder']) : '';
+    $status = isset($approval['status']) ? strtolower($approval['status']) : '';
     
-    foreach ($sorted_approvals as $index => $approval) {
-        $staffid = isset($approval['staffid']) ? (int)$approval['staffid'] : 0;
-        $status = isset($approval['status']) ? strtolower($approval['status']) : '';
-        
-        // Track user's position
-        if ($staffid == $user_id) {
-            $user_position = $index;
-        }
-        
-        // Find the first unsigned/unreviewed position
-        if ($current_position == -1 && !in_array($status, ['signed', 'reviewed', 'rejected'])) {
-            $current_position = $index;
-        }
-    }
-    
-    // Check if user can sign based on their position
-    if ($user_position !== -1 && $user_position == $current_position) {
-        $approval = $sorted_approvals[$user_position];
-        $placeholder = isset($approval['sign_placeholder']) ? trim($approval['sign_placeholder']) : '';
-        $status = isset($approval['status']) ? strtolower($approval['status']) : '';
-        
-        if (
-            !in_array($status, ['signed', 'reviewed', 'rejected']) &&
-            !empty($placeholder) &&
-            $placeholder !== '[]' &&
-            $placeholder !== 'null'
-        ) {
-            $can_sign = true;
-            $is_current_signer = true;
-        }
+    if (
+        !in_array($status, ['signed', 'reviewed', 'rejected']) &&
+        !empty($placeholder) &&
+        $placeholder !== '[]' &&
+        $placeholder !== 'null'
+    ) {
+        $can_sign = true;
+        $is_current_signer = true;
     }
 }
 
@@ -242,11 +185,6 @@ $has_stamp_placeholder = !empty($stamp_placeholder) && $stamp_placeholder !== '[
 <?php if ($can_sign): ?>
     <button class="btn btn-primary pull-right" style="margin-right: 15px;" data-toggle="modal" data-target="#signatureModal">
         <i class="fa fa-pencil"></i> Sign Now
-    </button>
-<?php elseif ($addedfrom_user_id > 0 && $addedfrom_found && !$addedfrom_signed && $user_id !== $addedfrom_user_id): ?>
-    <!-- Waiting for creator to sign first -->
-    <button class="btn btn-default pull-right" style="margin-right: 15px;" disabled title="Waiting for contract creator to sign first">
-        <i class="fa fa-clock-o"></i> Waiting for Creator to Sign
     </button>
 <?php elseif (
     isset($user_position) 
@@ -290,7 +228,7 @@ $has_stamp_placeholder = !empty($stamp_placeholder) && $stamp_placeholder !== '[
                      </li>
                      <li role="presentation" class="<?php if($this->input->get('tab') == 'tab_contract'){echo 'active';} ?> <?php if(empty($contract->contract_filename)) echo 'hide';?>">
                         <a href="#tab_contract" aria-controls="tab_contract" role="tab" data-toggle="tab">
-                           <?php echo ($contract->type == 'contracts') ? _l('contract_sign_preview') : _l('po_sign_preview'); ?>
+                           <?php echo ($contract->type == 'contracts') ? _l('contract_sign_preview') : _l($contract->type.'_sign_preview'); ?>
                         </a>
                      </li> 
                        <?php 
@@ -822,7 +760,8 @@ if ($show_tabs) { ?>
             </div>
             
 			   
-                 <div class="col-md-4" <?php if(isset($contract)){ ?> style="pointer-events: none;" <?php } ?>>
+                 
+            <div class="col-md-4" <?php if(isset($contract)){ ?> style="pointer-events: none;" <?php } ?>>
                 <div class="form-group select-placeholder f_client_id">
                     <?php
                       $selected = '';
@@ -847,6 +786,7 @@ if ($show_tabs) { ?>
                     ?>
                 </div>
             </div>
+
             <?php if($contract->type=='contracts'){ ?>
             <div class="col-md-4">
                <div class="form-group select-placeholder projects-wrapper<?php if((isset($contract) && !customer_has_projects($contract->client))){ echo ' hide';} ?>">
@@ -1958,7 +1898,8 @@ $first_approver = !empty($contract_approvals) ? $contract_approvals[0] : null;
 <?php $this->load->view('admin/approval/approval_js'); ?>
 <?php $this->load->view('admin/contracts/negotiations'); ?>
 <script type="text/javascript">
-	init_approval_table( '<?php echo $service; ?>', '<?php echo $contract->id; ?>');
+  var rel_type = "<?php echo ($contract->type == 'contracts' ? 'contract' : $contract->type); ?>";
+	init_approval_table( rel_type, '<?php echo $contract->id; ?>');
 </script>
 <!-- The reminders modal -->
 <?php $this->load->view('admin/includes/modals/reminder',array(
@@ -1983,8 +1924,8 @@ foreach ($contract_approvals as &$approval) {
 	  // get_templates_of_contract_ajax1();
      init_ajax_project_search_by_customer_id();
       get_contract_comments_overview();
-      var approvalType = '<?php echo ($contract->type == "contracts" ? "contract" : $contract->type); ?>';
-     init_approval_table_overview( approvalType, '<?php echo $contract->id; ?>');
+      var rel_type = "<?php echo ($contract->type == 'contracts' ? 'contract' : $contract->type); ?>";
+     init_approval_table_overview( rel_type, '<?php echo $contract->id; ?>');
      if ($('#contract-attachments-form').length > 0) {
         new Dropzone("#contract-attachments-form",appCreateDropzoneOptions({
            success: function (file) {
@@ -2419,7 +2360,7 @@ $('select[name="contract_type"]').change(function(){
    } 
    
    
-function init_approval_table_overview(rel_name,rel_id,type=''){   
+function init_approval_table_overview(rel_name,rel_id,type=''){ 
     var type = 'overview';
     
 				

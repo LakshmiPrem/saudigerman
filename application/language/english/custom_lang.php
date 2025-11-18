@@ -3226,7 +3226,7 @@ $lang['post_review']='Post Review';
 $lang['contract_postreview_added']='Contract Post Review Added';
 
 $lang['no_contract_members']='No members for this Contract';
-$lang['no_description_contract']='No description for this Contract';
+$lang['no_description_contract']='No description';
 $lang['contract_overview']='Overview';
 $lang['contract_mark_as_signed']='Contract Mark As Signed';
 $lang['contract_mark_as_send']='Contract Mark As Send';
@@ -3327,13 +3327,22 @@ $lang['is_stamper'] = 'Stamp';
 //purchase order
 $lang['signed_po'] = 'Signed PO';
 $lang['new_po'] = 'New Purchase Order';
-$lang['purchase_order'] = 'Purchase Order';
+$lang['purchase_order'] = 'Purchase Orders';
 $lang['po_summary_heading'] = 'Purchase Order Summary';
 $lang['po_sign_preview'] = 'PO Preview';
 $lang['upload_po'] = 'Upload PO';
 $lang['add_new'] = 'Add New';
+
 $lang['po'] = 'P O';
 $lang['po_approvals']='Approvals';
 $lang['po_approval_await']='PO Awaiting Approval';
 $lang['po_dashboard']='PO Dashboard';
+
+$lang['po_send_to_client_modal_heading']    = 'Send PO to email';
+$lang['po_send_to_otherparty_modal_heading']    = 'Send PO to Otherparty';
+$lang['po_approval']     ='PO Approval - %s';
+
+$lang['latest_purchase_order']     ='Latest Purchase Order';
+$lang['revew_now']     ='Review Now';
+
 

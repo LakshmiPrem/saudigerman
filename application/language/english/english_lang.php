@@ -4663,9 +4663,9 @@ $lang['contract_send_to_client_preview_template'] = 'Preview Email Template';
 
 $lang['include_attachments_to_email']             = 'Include attachments to email';
 
-$lang['contract_sent_to_client_success']          = 'The contract is successfully sent to the customer';
+$lang['contract_sent_to_client_success']          = 'The Email is successfully sent to the customer';
 
-$lang['contract_sent_to_client_fail']             = 'Failed to send contract';
+$lang['contract_sent_to_client_fail']             = 'Failed to send the Email';
 
 
 
@@ -7228,7 +7228,7 @@ $lang['unmark_as_signed']               = 'Unmark as signed';
 
 $lang['marked_as_signed']               = 'Marked as signed';
 
-$lang['contract_marked_as_signed_info'] = 'This contract is manually marked as signed.';
+$lang['contract_marked_as_signed_info'] = 'This is manually marked as signed.';
 
 $lang['save_and_send_later']            = 'Save and Send Later';
 

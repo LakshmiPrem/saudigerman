@@ -291,6 +291,7 @@
   </div>
 <?php } ?>
       <?php
+       if($contract->type!=='po'){  
    if(count($contract_negotiations) > 0){?>     
       <div class="row">
         
@@ -334,6 +335,7 @@
   </div>
   </div>
 <?php } ?>
+<?php } ?>
              <div class="row">
 			 <div class="col-md-12">
         <div class="panel_s panel-info">
@@ -348,6 +350,83 @@
 			   	
 </div>
 <div class="col-md-5 project-overview-right">
+   <?php if ($contract->type != 'contracts') { ?>
+<div class="row">
+    <div class="col-md-12">
+        <div class="panel_s panel-info">
+
+            <div class="panel-heading">
+                <h4 class="panel-title">
+                    <i class="fa fa-file-text-o"></i> <?php echo _l($contract->type); ?>
+                </h4>
+            </div>
+
+            <div class="panel-body">
+
+                <?php if ($contract->marked_as_signed == 1) { ?>
+
+                    <p class="text-success mtop10">
+                        <i class="fa fa-check-circle"></i> This <?php echo _l($contract->type); ?> has been signed.
+                    </p>
+
+                    <div class="btn-group mtop15" role="group">
+
+                        <!-- DOWNLOAD USING CONTRACT VERSION LOGIC -->
+                        <?php
+                            $totalversions = total_rows(db_prefix().'contract_versions','contractid='.$contract->id);
+                            if ($totalversions > 0) {
+                                $latest_version = get_current_contract_versioninfo($contract->id);
+
+                                $path1 = site_url('download/downloadagreementversion/' . 
+                                    $latest_version->contractid . '/' . $latest_version->id);
+
+                                $file_path = get_upload_path_by_type('contract') . 
+                                    $latest_version->contractid . '/' . 
+                                    $latest_version->version_internal_file_path;
+
+                                if (file_exists($file_path)) {
+                                    echo '<a href="'.$path1.'" class="btn btn-primary" 
+                                            data-toggle="tooltip" title="Download Signed PO">
+                                            <i class="fa fa-download"></i> Download PO
+                                          </a>';
+                                }
+                            }
+                        ?>
+
+                        <!-- VIEW -->
+                        <a href="<?php echo admin_url('contracts/contract_external_review/' . $contract->id); ?>" 
+                           class="btn btn-info">
+                            <i class="fa fa-eye"></i> View <?php echo _l($contract->type); ?>
+                        </a>
+
+                        <!-- EMAIL -->
+                        <a href="#" data-target="#contract_send_to_client_modal" data-toggle="modal"
+                           class="btn btn-success">
+                            <i class="fa fa-envelope"></i> Email <?php echo _l($contract->type); ?>
+                        </a>
+                    </div>
+
+                   
+
+                <?php } else { ?>
+
+                    <p class="text-warning mtop10">
+                        <i class="fa fa-hourglass-half"></i> This <?php echo _l($contract->type); ?> is not Signed Yet.
+                    </p>
+
+                <?php } ?>
+                 <!-- <p class="text-success mtop10">
+                        <i class="fa fa-check-circle"></i> This <?php //echo _l($contract->type); ?> has been Stamped.
+                 </p> -->
+
+            </div>
+
+
+
+        </div>
+    </div>
+</div>
+<?php } ?>
    <?php if($contract->type=='contracts') { ?>
   			 <div class="row">
 				

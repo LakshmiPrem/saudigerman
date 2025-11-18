@@ -1,7 +1,8 @@
 <script type="text/javascript">
 	var table;
 			
-	function init_approval_table(rel_name,rel_id){
+	function init_approval_table(rel_name,rel_id){ 
+		//var rel_name = "<?php //echo ($contract->type == 'contracts' ? 'contract' : 'po'); ?>";
 				
 				$('#div_approvals_list').html('');
 				$.ajax({
