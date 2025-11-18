@@ -119,7 +119,7 @@ if (
 
 			 <span class="pull-right" style="font-size:14px;font-weight: bold;padding-right:85px;"> <?php echo 'Prepared By : '. get_staff_full_name($contract->addedfrom); ?></span>
 		  <?php if(isset($contract) && $contract->contract_template_id != ''){ ?>
-            <a href="<?php echo site_url('contract/'.$contract->id.'/'.$contract->hash); ?>" target="_blank">
+            <a class="hide" href="<?php echo site_url('contract/'.$contract->id.'/'.$contract->hash); ?>" target="_blank">
                <?php echo _l('view_contract'); ?>
             </a>
 		  <?php } ?>
@@ -579,7 +579,7 @@ if ($show_tabs) { ?>
                                                 </button>
                                                 <ul class="dropdown-menu dropdown-menu-right">
 													 <?php if(isset($contract) && $contract->contract_template_id != ''){ ?>
-                                                   <li>
+                                                   <li class="hide">
                                                       <a href="<?php echo site_url('contract/'.$contract->id.'/'.$contract->hash); ?>" target="_blank">
                                                          <?php echo _l('view_contract'); ?>
                                                       </a>
@@ -1112,8 +1112,8 @@ if ($show_tabs) { ?>
 
     <div role="tabpanel" class="tab-pane<?php if($this->input->get('tab') == 'tab_contract'){echo ' active';} ?> <?php if(empty($contract->contract_filename)) echo 'hide';?>" id="tab_contract">
        <div class="col-md-12">
-    <div class="col-md-4">
-        <h3>Preview PDF & Sign Below</h3>
+    
+        
         
 <?php 
 $user_id = get_staff_user_id();
@@ -1159,8 +1159,11 @@ if (!empty($contract_approvals)) {
     }
 }
 ?>
-
-<?php if ($allowed_by_addedfrom) { ?>
+<div class="col-md-4 <?php if (!$allowed_by_addedfrom && !is_stamper(get_staff_user_id()) && !$show_rejection_section) { echo "hide"; }?>">
+<?php if ($allowed_by_addedfrom ||is_stamper(get_staff_user_id())) { ?>
+  <h3>Apply Placeholders</h3>
+  <?php if ($allowed_by_addedfrom ) { ?>
+    
 <div id="approvers">
     <h4>Approvers</h4>
     <!--14112025 start-->
@@ -1226,7 +1229,8 @@ if (!empty($contract_approvals)) {
         </label>
     </div>
 </div>
-
+ <?php }?>
+<?php if (is_stamper(get_staff_user_id())) { ?>
 <!-- Stamp Section -->
 <div id="stamp-section" style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #ccc;">
     <h4>Company Stamp</h4>
@@ -1243,7 +1247,7 @@ if (!empty($contract_approvals)) {
                 style="margin-top:5px;">Clear Stamp</button>
     </div>
 </div>
-
+<?php } ?>
 <!-- Combined Save Button -->
 <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #ccc; text-align: center;">
     <button class="btn btn-success btn-lg" id="saveAllPositions">
