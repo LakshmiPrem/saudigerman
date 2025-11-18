@@ -1898,7 +1898,8 @@ $first_approver = !empty($contract_approvals) ? $contract_approvals[0] : null;
 <?php $this->load->view('admin/approval/approval_js'); ?>
 <?php $this->load->view('admin/contracts/negotiations'); ?>
 <script type="text/javascript">
-	init_approval_table( '<?php echo $service; ?>', '<?php echo $contract->id; ?>');
+  var rel_type = "<?php echo ($contract->type == 'contracts' ? 'contract' : $contract->type); ?>";
+	init_approval_table( rel_type, '<?php echo $contract->id; ?>');
 </script>
 <!-- The reminders modal -->
 <?php $this->load->view('admin/includes/modals/reminder',array(
@@ -1923,7 +1924,8 @@ foreach ($contract_approvals as &$approval) {
 	  // get_templates_of_contract_ajax1();
      init_ajax_project_search_by_customer_id();
       get_contract_comments_overview();
-     init_approval_table_overview( '<?php echo $service; ?>', '<?php echo $contract->id; ?>');
+      var rel_type = "<?php echo ($contract->type == 'contracts' ? 'contract' : $contract->type); ?>";
+     init_approval_table_overview( rel_type, '<?php echo $contract->id; ?>');
      if ($('#contract-attachments-form').length > 0) {
         new Dropzone("#contract-attachments-form",appCreateDropzoneOptions({
            success: function (file) {

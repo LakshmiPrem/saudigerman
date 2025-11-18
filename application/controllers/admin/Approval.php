@@ -1110,26 +1110,28 @@ public function approvals()
                 $approverName = get_staff_full_name($insert['staffid']);
                 $remarks = $insert['approval_remarks'];
                 $addedBy = get_staff_full_name($insert['addedfrom']);
-                $type=$data['rel_type'];
-if($type=='contracts'){
-    $email_subject=_l('Contract Assigned for Your Review & Signature');
-}else{
-    $email_subject=_l('Purchase Order Assigned for Your Review & Signature');
-    
-}
+                 $type=$data['rel_type'];
+                if($type=='contracts'){
+                    $email_subject=_l('Contract Assigned for Your Review & Signature');
+                }else{
+                    $email_subject=_l('Purchase Order Assigned for Your Review & Signature');
+                    
+                }
  $contract_link = admin_url('admin/contracts/contract/' . $data['rel_id']);
                 // ✅ Build email message
                 $message = "
     Dear {$approverName},<br><br>
 
-    A new '.$type.' has been assigned to you for review and signature in the system.<br><br>
+    A new {$type} has been assigned to you for review and signature in the system.<br><br>
 
     <strong>Remarks from creator:</strong><br>
     {$remarks}<br><br>
 
     Kindly log in to the portal and proceed with the approval at your earliest convenience.<br><br>
-    Please click the link below to view <br><br>
+
+    Please click the link below to view:<br><br>
     <a href=\"{$contract_link}\">{$contract_link}</a><br><br>
+
     Thank you for your cooperation.<br><br>
 
     Best regards,<br>
@@ -1141,7 +1143,7 @@ if($type=='contracts'){
                 $this->load->model('emails_model'); 
                 $this->emails_model->send_simple_email(
                     get_staff($insert['staffid'])->email, 
-                    $email_subject,
+                    _l('Contract Assigned for Your Review & Signature'),
                     $message
                 );
 
