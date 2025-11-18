@@ -1113,8 +1113,10 @@ public function approvals()
                  $type=$data['rel_type'];
                 if($type=='contracts'){
                     $email_subject=_l('Contract Assigned for Your Review & Signature');
+                    $displaytype='Contract';
                 }else{
                     $email_subject=_l('Purchase Order Assigned for Your Review & Signature');
+                    $displaytype=strtoupper($type);
                     
                 }
  $contract_link = admin_url('admin/contracts/contract/' . $data['rel_id']);
@@ -1122,7 +1124,7 @@ public function approvals()
                 $message = "
     Dear {$approverName},<br><br>
 
-    A new {$type} has been assigned to you for review and signature in the system.<br><br>
+    A new {$displaytype} has been assigned to you for review and signature in the system.<br><br>
 
     <strong>Remarks from creator:</strong><br>
     {$remarks}<br><br>
@@ -1130,7 +1132,7 @@ public function approvals()
     Kindly log in to the portal and proceed with the approval at your earliest convenience.<br><br>
 
     Please click the link below to view:<br><br>
-    <a href=\"{$contract_link}\">{$contract_link}</a><br><br>
+    <a href=\"{$contract_link}\" target=\"_blank\">Click here</a><br><br>
 
     Thank you for your cooperation.<br><br>
 
