@@ -3346,3 +3346,8 @@ $lang['latest_purchase_order']     ='Latest Purchase Order';
 $lang['revew_now']     ='Review Now';
 $lang['no_of_pos'] ='No Of POs';
 
+$lang['po_summary_inprogress']     ='In Progress';
+$lang['po_summary_signed']     ='Signed';
+
+
+

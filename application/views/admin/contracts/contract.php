@@ -119,7 +119,7 @@ if (
 
 			 <span class="pull-right" style="font-size:14px;font-weight: bold;padding-right:85px;"> <?php echo 'Prepared By : '. get_staff_full_name($contract->addedfrom); ?></span>
 		  <?php if(isset($contract) && $contract->contract_template_id != ''){ ?>
-            <a href="<?php echo site_url('contract/'.$contract->id.'/'.$contract->hash); ?>" target="_blank">
+            <a class="hide" href="<?php echo site_url('contract/'.$contract->id.'/'.$contract->hash); ?>" target="_blank">
                <?php echo _l('view_contract'); ?>
             </a>
 		  <?php } ?>
@@ -579,7 +579,7 @@ if ($show_tabs) { ?>
                                                 </button>
                                                 <ul class="dropdown-menu dropdown-menu-right">
 													 <?php if(isset($contract) && $contract->contract_template_id != ''){ ?>
-                                                   <li>
+                                                   <li class="hide">
                                                       <a href="<?php echo site_url('contract/'.$contract->id.'/'.$contract->hash); ?>" target="_blank">
                                                          <?php echo _l('view_contract'); ?>
                                                       </a>
@@ -775,7 +775,20 @@ if ($show_tabs) { ?>
                       }
                       ?>
 
-                    <?php echo render_select('client',$clients,             
+                    <?php 
+                   if($contract->type=='contracts'){
+                        $this->load->model('clients_model');
+                      $clients=$this->clients_model->get('',['tblclients.active'=>1]);
+
+                    }else{
+                        $this->load->model('clients_model');
+                        $clients=$this->clients_model->get('', [
+                            'tblclients.active' => 1,
+                            'tblclients.ctype'  => 'po'
+                        ]);
+
+                    }
+                    echo render_select('client',$clients,             
                             array('userid', 'company'), 'client',$selected,            
                             array('data-none-selected-text' => _l('dropdown_non_selected_tex'),
                                 'data-live-search' => 'true',
@@ -959,9 +972,12 @@ if ($show_tabs) { ?>
 			 </div>
          <?php $rel_id = (isset($contract) ? $contract->id : false); ?>
          <?php echo render_custom_fields('contracts',$rel_id); ?>
+         <?php $is_editable1 = (is_admin() || (isset($contract) && $contract->addedfrom == get_staff_user_id())); ?>
+         <?php if ($is_editable1) { ?>
          <div class="btn-bottom-toolbar text-right">
             <button type="submit" class="btn btn-info"><?php echo _l('submit'); ?></button>
          </div>
+         <?php } ?>
          <?php echo form_close(); ?>
       </div>
       </div>
@@ -1096,20 +1112,20 @@ if ($show_tabs) { ?>
 
     <div role="tabpanel" class="tab-pane<?php if($this->input->get('tab') == 'tab_contract'){echo ' active';} ?> <?php if(empty($contract->contract_filename)) echo 'hide';?>" id="tab_contract">
        <div class="col-md-12">
-    <div class="col-md-4">
-        <h3>Preview PDF & Sign Below</h3>
+    
+        
         
 <?php 
 $user_id = get_staff_user_id();
 $user_approval = null;
 $show_rejection_section = false;
 $allowed_by_addedfrom = false;
-
-// Check if current user is in contract_approvals
-foreach ($contract_approvals as $approval) {
-    if (isset($approval['addedfrom']) && (int)$approval['addedfrom'] === (int)$user_id) {
+ if (isset($contract->addedfrom) && (int)$contract->addedfrom == (int)$user_id) {
         $allowed_by_addedfrom = true;
     }
+// Check if current user is in contract_approvals
+foreach ($contract_approvals as $approval) {
+   
 
     if (isset($approval['staffid']) && (int)$approval['staffid'] === (int)$user_id) {
         $user_approval = $approval;
@@ -1121,7 +1137,7 @@ foreach ($contract_approvals as $approval) {
 
         // Check conditions to show rejection section
         if (
-            !in_array($status, ['signed', 'rejected']) && // not signed/rejected
+            !in_array($status, ['signed', 'rejected','reviewed']) && // not signed/rejected
             !empty($placeholder) &&                       // placeholder not empty
             $placeholder !== '[]' &&                      // placeholder not empty array
             $placeholder !== 'null' &&                    // placeholder not 'null' string
@@ -1132,11 +1148,22 @@ foreach ($contract_approvals as $approval) {
     }
 }
 
-// Get first approver for auto-selection
-$first_approver = !empty($contract_approvals) ? $contract_approvals[0] : null;
+// Find the first approver that doesn't have approval_heading_id == 11
+$first_approver = null;
+if (!empty($contract_approvals)) {
+    foreach ($contract_approvals as $approver) {
+        if ($approver['approval_heading_id'] != 11) {
+            $first_approver = $approver;
+            break;
+        }
+    }
+}
 ?>
-
-<?php if ($allowed_by_addedfrom) { ?>
+<div class="col-md-4 <?php if (!$allowed_by_addedfrom && !is_stamper(get_staff_user_id()) && !$show_rejection_section) { echo "hide"; }?>">
+<?php if ($allowed_by_addedfrom ||is_stamper(get_staff_user_id())) { ?>
+  <h3>Apply Placeholders</h3>
+  <?php if ($allowed_by_addedfrom ) { ?>
+    
 <div id="approvers">
     <h4>Approvers</h4>
     <!--14112025 start-->
@@ -1202,7 +1229,8 @@ $first_approver = !empty($contract_approvals) ? $contract_approvals[0] : null;
         </label>
     </div>
 </div>
-
+ <?php }?>
+<?php if (is_stamper(get_staff_user_id())) { ?>
 <!-- Stamp Section -->
 <div id="stamp-section" style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #ccc;">
     <h4>Company Stamp</h4>
@@ -1219,7 +1247,7 @@ $first_approver = !empty($contract_approvals) ? $contract_approvals[0] : null;
                 style="margin-top:5px;">Clear Stamp</button>
     </div>
 </div>
-
+<?php } ?>
 <!-- Combined Save Button -->
 <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #ccc; text-align: center;">
     <button class="btn btn-success btn-lg" id="saveAllPositions">
