@@ -251,6 +251,31 @@ function count_expired_contracts($staffId = null)
 
     return total_rows(db_prefix() . 'contracts', array_merge(['status' => 3, 'trash' => 0], $where_own));
 }
+
+function count_inprogress_po($staffId = null)
+{
+    $where_own = [];
+    $staffId   = is_null($staffId) ? get_staff_user_id() : $staffId;
+
+    if (!has_permission('contracts', '', 'view')) {
+        $where_own = ['addedfrom' => $staffId];
+		
+    }
+
+    return total_rows(db_prefix() . 'contracts', array_merge(['status' => 1,'type'=>'po', 'trash' => 0], $where_own));
+}
+function count_signed_po($staffId = null)
+{
+    $where_own = [];
+    $staffId   = is_null($staffId) ? get_staff_user_id() : $staffId;
+
+    if (!has_permission('contracts', '', 'view')) {
+        $where_own = ['addedfrom' => $staffId];
+		
+    }
+
+    return total_rows(db_prefix() . 'contracts', array_merge(['status' => 2,'type'=>'po', 'trash' => 0], $where_own));
+}
 /**
  * Get total number of trash contracts
  *

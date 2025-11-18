@@ -30,7 +30,20 @@
                <div class="form-group select-placeholder f_client_id">
                    
 
-                    <?php echo render_select('client',$clients,             
+                    <?php if($type=='contracts'){
+                        $this->load->model('clients_model');
+                      $clients=$this->clients_model->get('',['tblclients.active'=>1]);
+
+                    }else{
+                        $this->load->model('clients_model');
+                        $clients=$this->clients_model->get('', [
+                            'tblclients.active' => 1,
+                            'tblclients.ctype'  => 'po'
+                        ]);
+
+                    }
+        
+                    echo render_select('client',$clients,             
                             array('userid', 'company'), 'client','',            
                             array('data-none-selected-text' => _l('dropdown_non_selected_tex'),
                                 'data-live-search' => 'true',
@@ -189,9 +202,10 @@ $(document).ready(function() {
 
 
           var fileName = this.files[0].name;
+          var cleanName = fileName.replace(/\.[^/.]+$/, "");
 
             // Put the file name in the subject field
-            $('#subject1').val(fileName);
+            $('#subject1').val(cleanName);
 
             // Simulate file being processed or uploaded
             $saveBtn.prop('disabled', true);

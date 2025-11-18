@@ -3345,4 +3345,8 @@ $lang['po_approval']     ='PO Approval - %s';
 $lang['latest_purchase_order']     ='Latest Purchase Order';
 $lang['revew_now']     ='Review Now';
 
+$lang['po_summary_inprogress']     ='In Progress';
+$lang['po_summary_signed']     ='Signed';
+
+
 

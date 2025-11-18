@@ -775,7 +775,20 @@ if ($show_tabs) { ?>
                       }
                       ?>
 
-                    <?php echo render_select('client',$clients,             
+                    <?php 
+                   if($contract->type=='contracts'){
+                        $this->load->model('clients_model');
+                      $clients=$this->clients_model->get('',['tblclients.active'=>1]);
+
+                    }else{
+                        $this->load->model('clients_model');
+                        $clients=$this->clients_model->get('', [
+                            'tblclients.active' => 1,
+                            'tblclients.ctype'  => 'po'
+                        ]);
+
+                    }
+                    echo render_select('client',$clients,             
                             array('userid', 'company'), 'client',$selected,            
                             array('data-none-selected-text' => _l('dropdown_non_selected_tex'),
                                 'data-live-search' => 'true',
@@ -959,9 +972,12 @@ if ($show_tabs) { ?>
 			 </div>
          <?php $rel_id = (isset($contract) ? $contract->id : false); ?>
          <?php echo render_custom_fields('contracts',$rel_id); ?>
+         <?php $is_editable1 = (is_admin() || (isset($contract) && $contract->addedfrom == get_staff_user_id())); ?>
+         <?php if ($is_editable1) { ?>
          <div class="btn-bottom-toolbar text-right">
             <button type="submit" class="btn btn-info"><?php echo _l('submit'); ?></button>
          </div>
+         <?php } ?>
          <?php echo form_close(); ?>
       </div>
       </div>

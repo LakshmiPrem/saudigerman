@@ -29,14 +29,28 @@
                         </div>
                         <?php } else { ?>
                         <div class="col-md-12">
-                            <h4 class="no-margin text-success"><?php echo _l('po_summary_heading'); ?></h4>
+                            <h4 class="no-margin text-success"><?php echo _l($type.'_summary_heading'); ?></h4>
                         </div>
                         <?php } ?>
-                       <div class="col-md-2 col-xs-6 <?php echo ($type == 'contracts') ? 'border-right' : ''; ?>">
+                        <?php if($type=='po') { ?>
+                       <div class="col-md-2 col-xs-6 border-right">
                             <h3 class="bold"><?php echo $count_active; ?></h3>
                             <span class="text-info"><?php echo _l('contract_summary_active'); ?></span>
                         </div>
+                        <div class="col-md-2 col-xs-6 border-right">
+                            <h3 class="bold"><?php echo $count_po_inprogress; ?></h3>
+                            <span class="text-info"><?php echo _l('po_summary_inprogress'); ?></span>
+                        </div>
+                        <div class="col-md-2 col-xs-6">
+                            <h3 class="bold"><?php echo $count_po_signed; ?></h3>
+                            <span class="text-info"><?php echo _l('po_summary_signed'); ?></span>
+                        </div>
+                         <?php } ?>
                          <?php if($type=='contracts') { ?>
+                        <div class="col-md-2 col-xs-6 border-right">
+                            <h3 class="bold"><?php echo $count_active; ?></h3>
+                            <span class="text-info"><?php echo _l('contract_summary_active'); ?></span>
+                        </div>
                         <div class="col-md-2 col-xs-6 border-right">
                             <h3 class="bold"><?php echo $count_expired; ?></h3>
                             <span class="text-danger"><?php echo _l('contract_summary_expired'); ?></span>
