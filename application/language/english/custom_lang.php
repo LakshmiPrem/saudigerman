@@ -3226,7 +3226,7 @@ $lang['post_review']='Post Review';
 $lang['contract_postreview_added']='Contract Post Review Added';
 
 $lang['no_contract_members']='No members for this Contract';
-$lang['no_description_contract']='No description for this Contract';
+$lang['no_description_contract']='No description';
 $lang['contract_overview']='Overview';
 $lang['contract_mark_as_signed']='Contract Mark As Signed';
 $lang['contract_mark_as_send']='Contract Mark As Send';
