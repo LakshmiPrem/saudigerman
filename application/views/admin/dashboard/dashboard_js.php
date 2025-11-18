@@ -326,7 +326,7 @@ load_client_data(1);
 <?php if($confirmapproval=='contract'){?>
 load_contractapprover_report();
 <?php } ?>
-<?php if($confirmapproval=='contract'){?>
+<?php if($confirmapproval=='ticket'){?>
 load_ticketapprover_report();
 <?php } ?>
  function load_client_data(page)
@@ -578,16 +578,17 @@ $("#report-from1").on("change", function() {
     });
      
     }
-   function load_contractapprover_report() {
+   function load_contractapprover_report(rel_type='contract') {
+   
 		 var fnServerParams = {
          'clientid23':'[name="clientid23"]',
 		 'service_type':'[name="service_type"]',
-	 	't_status':'[name="t_status"]',      
-    }
+	 	't_status':'[name="t_status"]',  
+       }
 	  if ($.fn.DataTable.isDataTable('.table-contractapprovals-report')) {
        $('.table-contractapprovals-report').DataTable().destroy();
      }
-     _table_api = initDataTable('.table-contractapprovals-report', admin_url + 'reports/contractapproval_report', false, false, fnServerParams, [
+     _table_api = initDataTable('.table-contractapprovals-report', admin_url + 'reports/contractapproval_report/'+rel_type, false, false, fnServerParams, [
        [5, 'DESC'],
        [0, 'DESC']
        ]);
@@ -940,21 +941,58 @@ function scrollToTable() {
 function contract_approval_report() { 
 
 
-
-    var fnServerParams = {
-        'contract_type1':'[name="contract_typerec1"]',
-        "report_to": "[name='report-toc-rec1']",
-        "report_from": "[name='report-fromc-rec1']",
-        "clientid2211": '[name="client_id22rec1"]',
-        "report_months": '[name="months-reportc-rec"]',
-    'c_status1':'[name="contract_statusrec1"]',
-     'in_out':'[name="in_outrec"]',
+   var fnServerParams = {
+       
+        "report_to": "[name='report-toc-app']",
+        "report_from": "[name='report-fromc-app']",
+        "clientid2211": '[name="client_id22app"]',
+        "report_months": '[name="months-reportc-app"]',
+    'c_status1':'[name="contract_statusapp"]',
+     'contract_po':'[name="contract_po"]',
     }   
      if ($.fn.DataTable.isDataTable('.table-contract-approval-report')) {
        $('.table-contract-approval-report').DataTable().destroy();
      }
  
      _table_api = initDataTable('.table-contract-approval-report', admin_url + 'reports/contract_approval_report', false, false, fnServerParams, [
+       [0, 'DESC'],
+       [0, 'DESC']
+       ]);//.column(3).visible(false, false).columns.adjust();
+     $.each(fnServerParams, function(i, obj) {
+        $('select' + obj).on('change', function() {
+            _table_api.ajax.reload();
+        });
+    });
+     
+     $('input[name="report-fromc-rec1"]').on('change',function(){
+        _table_api.ajax.reload();
+     });
+
+     $('input[name="report-toc-rec1"]').on('change',function(){
+        _table_api.ajax.reload();
+     });
+
+  
+   
+   }
+
+   function po_approval_report() { 
+
+
+   var fnServerParams = {
+       
+        "report_to": "[name='report-toc-app1']",
+        "report_from": "[name='report-fromc-app1']",
+        "clientid2211": '[name="client_id22app1"]',
+        "report_months": '[name="months-reportc-app1"]',
+    'c_status1':'[name="contract_statusapp1"]',
+     'contract_po':'[name="contract_po1"]',
+    }   
+     if ($.fn.DataTable.isDataTable('.table-po-approval-report')) {
+       $('.table-po-approval-report').DataTable().destroy();
+     }
+ 
+     _table_api = initDataTable('.table-po-approval-report', admin_url + 'reports/contract_approval_report', false, false, fnServerParams, [
        [0, 'DESC'],
        [0, 'DESC']
        ]);//.column(3).visible(false, false).columns.adjust();
