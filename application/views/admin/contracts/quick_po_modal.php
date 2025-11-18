@@ -30,19 +30,13 @@
                <div class="form-group select-placeholder">
                    
 
-                    <?php if($type=='contracts'){
-                        $this->load->model('clients_model');
-                      $clients=$this->clients_model->get('',['tblclients.active'=>1]);
-
-                    }else{
+                    <?php 
                         $this->load->model('clients_model');
                         $clients=$this->clients_model->get('', [
                             'tblclients.active' => 1,
                             'tblclients.ctype'  => $type
                         ]);
 
-                    }
-        
                     echo render_select('client',$clients,             
                             array('userid', 'company'), 'client');
                     ?>
