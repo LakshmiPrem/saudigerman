@@ -109,7 +109,7 @@
                   <th><?php echo _l('contact_primary'); ?></th>
                    <th><?php echo _l('clients_list_phone'); ?></th>
                    <th><?php echo _l('customer_groups'); ?></th>
-                  <th><?php echo _l('no_of_requests'); ?></th>
+                  <th><?php echo _l('no_of_pos'); ?></th>
                   <th><?php echo _l('no_of_contracts'); ?></th>
                </tr>
             </thead>
@@ -274,8 +274,12 @@
                 <?php echo render_select('client_idpo',$clients_po,array('userid','company'),'customers','');?>
             </div>
          </div>
+          <div class="col-md-2 pull-right">
+             <?php if (has_permission('contracts','','create')) { ?>
+                     <a onclick="new_quick_po();return false;" href="#" class="btn btn-info mright5 mtop12 test pull-right display-block" title="<?=_l('new_po');?>" >
+                     <i class="fa fa-plus" aria-hidden="true"></i></a> <?php } ?>
          
-         
+       </div>
        
               
      
