@@ -581,14 +581,14 @@ class Contracts extends AdminController
         }
         $response = $this->contracts_model->delete($id);
         if ($response == true) {
-            set_alert('success', _l('deleted', _l('contract')));
+            set_alert('success', _l('Deleted'));
         } else {
-            set_alert('warning', _l('problem_deleting', _l('contract_lowercase')));
+            set_alert('warning', _l('problem_deleting'));
         }
         if (strpos($_SERVER['HTTP_REFERER'], 'clients/') !== false) {
             redirect($_SERVER['HTTP_REFERER']);
         } else {
-            redirect(admin_url('contracts'));
+             redirect($_SERVER['HTTP_REFERER']);
         }
     }
 
@@ -1370,7 +1370,7 @@ $templateProcessor->setImageValue('Signature', function () {
                     }
                     
                         $success = true;
-                        $message = _l('added_successfully', _l('contract'));
+                        $message = _l('Added_successfully');
                     }
                     echo json_encode([
                         'success' => $success,

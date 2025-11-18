@@ -1119,7 +1119,7 @@ public function approvals()
                     $displaytype=strtoupper($type);
                     
                 }
- $contract_link = admin_url('admin/contracts/contract/' . $data['rel_id']);
+ $contract_link = admin_url('contracts/contract/' . $data['rel_id']);
                 // ✅ Build email message
                 $message = "
     Dear {$approverName},<br><br>

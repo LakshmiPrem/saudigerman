@@ -228,7 +228,7 @@ $has_stamp_placeholder = !empty($stamp_placeholder) && $stamp_placeholder !== '[
                      </li>
                      <li role="presentation" class="<?php if($this->input->get('tab') == 'tab_contract'){echo 'active';} ?> <?php if(empty($contract->contract_filename)) echo 'hide';?>">
                         <a href="#tab_contract" aria-controls="tab_contract" role="tab" data-toggle="tab">
-                           <?php echo ($contract->type == 'contracts') ? _l('contract_sign_preview') : _l('po_sign_preview'); ?>
+                           <?php echo ($contract->type == 'contracts') ? _l('contract_sign_preview') : _l($contract->type.'_sign_preview'); ?>
                         </a>
                      </li> 
                        <?php 

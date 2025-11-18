@@ -350,14 +350,14 @@
 			   	
 </div>
 <div class="col-md-5 project-overview-right">
-   <?php if ($contract->type == 'po') { ?>
+   <?php if ($contract->type != 'contracts') { ?>
 <div class="row">
     <div class="col-md-12">
         <div class="panel_s panel-info">
 
             <div class="panel-heading">
                 <h4 class="panel-title">
-                    <i class="fa fa-file-text-o"></i> Purchase Order 
+                    <i class="fa fa-file-text-o"></i> <?php echo _l($contract->type); ?>
                 </h4>
             </div>
 
@@ -366,7 +366,7 @@
                 <?php if ($contract->marked_as_signed == 1) { ?>
 
                     <p class="text-success mtop10">
-                        <i class="fa fa-check-circle"></i> This PO has been signed.
+                        <i class="fa fa-check-circle"></i> This <?php echo _l($contract->type); ?> has been signed.
                     </p>
 
                     <div class="btn-group mtop15" role="group">
@@ -396,13 +396,13 @@
                         <!-- VIEW -->
                         <a href="<?php echo admin_url('contracts/contract_external_review/' . $contract->id); ?>" 
                            class="btn btn-info">
-                            <i class="fa fa-eye"></i> View PO
+                            <i class="fa fa-eye"></i> View <?php echo _l($contract->type); ?>
                         </a>
 
                         <!-- EMAIL -->
                         <a href="#" data-target="#contract_send_to_client_modal" data-toggle="modal"
                            class="btn btn-success">
-                            <i class="fa fa-envelope"></i> Email PO
+                            <i class="fa fa-envelope"></i> Email <?php echo _l($contract->type); ?>
                         </a>
                     </div>
 
@@ -411,12 +411,18 @@
                 <?php } else { ?>
 
                     <p class="text-warning mtop10">
-                        <i class="fa fa-hourglass-half"></i> This PO is not signed yet.
+                        <i class="fa fa-hourglass-half"></i> This <?php echo _l($contract->type); ?> is not Signed Yet.
                     </p>
 
                 <?php } ?>
+                 <!-- <p class="text-success mtop10">
+                        <i class="fa fa-check-circle"></i> This <?php //echo _l($contract->type); ?> has been Stamped.
+                 </p> -->
 
             </div>
+
+
+
         </div>
     </div>
 </div>
