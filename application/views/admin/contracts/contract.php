@@ -761,7 +761,7 @@ if ($show_tabs) { ?>
             
 			   
                  
-            <div class="col-md-4" <?php if(isset($contract)){ ?> style="pointer-events: none;" <?php } ?>>
+           <div class="col-md-4" <?php if(isset($contract)){ ?> style="pointer-events: none;" <?php } ?>>
                 <div class="form-group select-placeholder f_client_id">
                     <?php
                       $selected = '';
@@ -775,20 +775,7 @@ if ($show_tabs) { ?>
                       }
                       ?>
 
-                    <?php 
-                   if($contract->type=='contracts'){
-                        $this->load->model('clients_model');
-                      $clients=$this->clients_model->get('',['tblclients.active'=>1]);
-
-                    }else{
-                        $this->load->model('clients_model');
-                        $clients=$this->clients_model->get('', [
-                            'tblclients.active' => 1,
-                            'tblclients.ctype'  => 'po'
-                        ]);
-
-                    }
-                    echo render_select('client',$clients,             
+                    <?php echo render_select('client',$clients,             
                             array('userid', 'company'), 'client',$selected,            
                             array('data-none-selected-text' => _l('dropdown_non_selected_tex'),
                                 'data-live-search' => 'true',
