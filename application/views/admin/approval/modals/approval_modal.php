@@ -32,7 +32,7 @@
                <?php $appdue_date=get_approval_duedate($rel_id,$rel_name);?>
                <?php $value = !empty($appdue_date)?_d($appdue_date):_d(date('Y-m-d')); ?>
                <?php echo render_date_input('approvaldue_date','approval_due_date',$value,array('data-date-min-date'=>_d(date('Y-m-d')))); ?>
-               <?php //echo render_datetime_input('date','set_reminder_date','',array('data-date-min-date'=>_d(date('Y-m-d')))); ?>
+              
             </div>
 
            <!-- ✅ Enable Reminder Checkbox -->
