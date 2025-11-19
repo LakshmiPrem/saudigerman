@@ -3085,7 +3085,9 @@ $(document).ready(function() {
     
     // Load existing page inputs from PHP data
     <?php foreach ($contract_approvals as $a): ?>
-        approverPageInputs['<?= $a['staffid'] ?>'] = '';
+        <?php if (isset($a['approval_heading_id']) && (int)$a['approval_heading_id'] !== 11): ?>
+            approverPageInputs['<?= $a['staffid'] ?>'] = '<?= isset($a['pages']) ? $a['pages'] : '' ?>';
+        <?php endif; ?>
     <?php endforeach; ?>
     
     // Load common checkbox states from first approver (all should have same values)
@@ -3110,10 +3112,12 @@ $(document).ready(function() {
         var selectedId = $(this).val();
         var selectedName = $(this).find('option:selected').data('name');
         
-        // Save current input value before switching
+        // ⭐ IMPORTANT: Save current input value BEFORE switching
         var currentId = $('#current-page-input').attr('data-approver-id');
         if (currentId) {
-            approverPageInputs[currentId] = $('#current-page-input').val();
+            var currentValue = $('#current-page-input').val().trim();
+            approverPageInputs[currentId] = currentValue;
+            console.log('💾 Saved page input for approver', currentId, ':', currentValue);
         }
         
         if (selectedId) {
@@ -3131,12 +3135,10 @@ $(document).ready(function() {
             // Update clear button data attribute
             $('#current-clear-btn').attr('data-approver-id', selectedId);
             
-            // Load stored page input value for this approver
-            if (approverPageInputs[selectedId]) {
-                $('#current-page-input').val(approverPageInputs[selectedId]);
-            } else {
-                $('#current-page-input').val('');
-            }
+            // ⭐ Load stored page input value for this approver
+            var storedValue = approverPageInputs[selectedId] || '';
+            $('#current-page-input').val(storedValue);
+            console.log('📂 Loaded page input for approver', selectedId, ':', storedValue);
             
             // Refresh drag events
             if (window.refreshDragEvents) {
@@ -3155,17 +3157,21 @@ $(document).ready(function() {
         }
     });
     
-    // Sync page input changes
-    $('#current-page-input').on('change keyup', function() {
+    // ⭐ Sync page input changes in REAL-TIME
+    $('#current-page-input').on('input change keyup blur', function() {
         var approverId = $(this).attr('data-approver-id');
         if (approverId) {
-            approverPageInputs[approverId] = $(this).val();
+            var value = $(this).val().trim();
+            approverPageInputs[approverId] = value;
+            console.log('✍️ Updated page input for approver', approverId, ':', value);
         }
     });
     
     // Make stored values accessible globally for save function
     window.getApproverPageInput = function(approverId) {
-        return approverPageInputs[approverId] || '';
+        var value = approverPageInputs[approverId] || '';
+        console.log('🔍 Getting page input for approver', approverId, ':', value);
+        return value;
     };
     
     // Get common checkbox states (same for all approvers)
@@ -3177,10 +3183,27 @@ $(document).ready(function() {
     };
 });
 
-// Updated Save All Positions function
+// ⭐ FIXED: Updated Save All Positions function
 $('#saveAllPositions').on('click', function() {
   const $button = $(this);
   $button.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Saving...');
+  
+  // ⭐ Save the currently displayed input before processing
+  const currentApproverId = $('#current-page-input').attr('data-approver-id');
+  if (currentApproverId) {
+    const currentValue = $('#current-page-input').val().trim();
+    if (typeof window.getApproverPageInput === 'function') {
+      // Update the stored value
+      const storedInputs = {};
+      <?php foreach ($contract_approvals as $a): ?>
+        <?php if (isset($a['approval_heading_id']) && (int)$a['approval_heading_id'] !== 11): ?>
+          storedInputs['<?= $a['staffid'] ?>'] = window.getApproverPageInput('<?= $a['staffid'] ?>');
+        <?php endif; ?>
+      <?php endforeach; ?>
+      storedInputs[currentApproverId] = currentValue;
+    }
+    console.log('💾 Final save - current approver:', currentApproverId, 'value:', currentValue);
+  }
   
   const currentApproversOnScreen = new Set();
   const positionsByApprover = {};
@@ -3207,19 +3230,24 @@ $('#saveAllPositions').on('click', function() {
     ? window.getCommonCheckboxStates() 
     : { inc_app_name: false, inc_time_stamp: false };
   
+  // ⭐ Process ALL approvers that have placeholders on screen
   for (let approver_id in positionsByApprover) {
     let pagesInput = '';
     
     if (typeof window.getApproverPageInput === 'function') {
       pagesInput = window.getApproverPageInput(approver_id);
-    } else {
+    }
+    
+    // ⭐ Fallback: check if this is the currently selected approver
+    if (!pagesInput) {
       const currentDropdownId = $('#approver-select').val();
       if (currentDropdownId == approver_id) {
         pagesInput = $('#current-page-input').val().trim();
       }
     }
     
-    // Use common checkbox states for all approvers
+    console.log('📦 Preparing to save approver', approver_id, 'with pages:', pagesInput);
+    
     signaturePositions.push({
       approver_id: approver_id,
       coords: positionsByApprover[approver_id],
@@ -3229,6 +3257,7 @@ $('#saveAllPositions').on('click', function() {
     });
   }
   
+  // ⭐ Process removed approvers
   removedApprovers.forEach(approver_id => {
     if (!currentApproversOnScreen.has(approver_id)) {
       signaturePositions.push({
@@ -3241,6 +3270,7 @@ $('#saveAllPositions').on('click', function() {
     }
   });
 
+  // Process stamp
   const stampBoxes = [];
   let hasStampBoxes = false;
   $('.sign-box[data-type="stamp"]').each(function() {
@@ -3251,13 +3281,18 @@ $('#saveAllPositions').on('click', function() {
     stampBoxes.push({ x, y, page });
   });
   
-  // ⭐ FIX: Check if stamp page input exists before calling .val()
   const stampPageInput = $('.page-input[data-approver-id="company_stamp"]');
   const stampPages = stampPageInput.length > 0 ? (stampPageInput.val() || '').trim() : '';
   
   if (removedStamp.isRemoved && stampBoxes.length === 0) {
     hasStampBoxes = true;
   }
+
+  console.log('📤 Sending to server:', {
+    signaturePositions: signaturePositions,
+    stampBoxes: stampBoxes,
+    stampPages: stampPages
+  });
 
   $.ajax({
     url: "<?= admin_url('contracts/save_all_placeholders') ?>",
