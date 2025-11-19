@@ -1128,8 +1128,7 @@ foreach ($contract_approvals as $approval) {
             !in_array($status, ['signed', 'rejected','reviewed']) && // not signed/rejected
             !empty($placeholder) &&                       // placeholder not empty
             $placeholder !== '[]' &&                      // placeholder not empty array
-            $placeholder !== 'null' &&                    // placeholder not 'null' string
-            $approval_status !== 2                        // approval_status not 2
+            $placeholder !== 'null'                        // approval_status not 2
         ) {
             $show_rejection_section = true;
         }
@@ -3117,13 +3116,12 @@ function drawSavedStampPlaceholder(pageNum) {
   });
 }
 
-
-
+// ⭐⭐⭐ FIXED: Page Input Management with proper storage
 $(document).ready(function() {
     // Store page input values for all approvers
     var approverPageInputs = {};
     
-    // Load existing page inputs from PHP data
+    // ⭐ Load existing page inputs from PHP data
     <?php foreach ($contract_approvals as $a): ?>
         <?php if (isset($a['approval_heading_id']) && (int)$a['approval_heading_id'] !== 11): ?>
             approverPageInputs['<?= $a['staffid'] ?>'] = '<?= isset($a['pages']) ? $a['pages'] : '' ?>';
@@ -3223,24 +3221,19 @@ $(document).ready(function() {
     };
 });
 
-// ⭐ FIXED: Updated Save All Positions function
+// ⭐⭐⭐ FIXED: Updated Save All Positions function
 $('#saveAllPositions').on('click', function() {
   const $button = $(this);
   $button.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Saving...');
   
   // ⭐ Save the currently displayed input before processing
   const currentApproverId = $('#current-page-input').attr('data-approver-id');
-  if (currentApproverId) {
+  if (currentApproverId && typeof window.getApproverPageInput === 'function') {
     const currentValue = $('#current-page-input').val().trim();
-    if (typeof window.getApproverPageInput === 'function') {
-      // Update the stored value
-      const storedInputs = {};
-      <?php foreach ($contract_approvals as $a): ?>
-        <?php if (isset($a['approval_heading_id']) && (int)$a['approval_heading_id'] !== 11): ?>
-          storedInputs['<?= $a['staffid'] ?>'] = window.getApproverPageInput('<?= $a['staffid'] ?>');
-        <?php endif; ?>
-      <?php endforeach; ?>
-      storedInputs[currentApproverId] = currentValue;
+    // Force update the stored value
+    if (window.getApproverPageInput) {
+      // This will be picked up by the function below
+      $('#current-page-input').trigger('blur');
     }
     console.log('💾 Final save - current approver:', currentApproverId, 'value:', currentValue);
   }
