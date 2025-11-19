@@ -3664,15 +3664,15 @@ function  get_approval_access(){
   function  get_threshold_limits($type='contract'){
     if($type=='contract'){
     return array(
-                 array('id'=>'7','name'=>'<500K'),
-                array('id'=>'8','name'=>'>500'),
+                 array('id'=>'1','name'=>'<500K'),
+                array('id'=>'2','name'=>'>500'),
                               
           );
 }else{
      return array(
-                 array('id'=>'3','name'=>'<500K'),
-                array('id'=>'4','name'=>'>500'),
-                array('id'=>'5','name'=>'>1M'),
+                 array('id'=>'1','name'=>'<500K'),
+                array('id'=>'2','name'=>'>500'),
+                array('id'=>'3','name'=>'>1M'),
                
           );
   }
