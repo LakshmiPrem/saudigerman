@@ -6577,7 +6577,7 @@ public function expenses($type = 'simple_report')
 			$summary .='<a class="btn btn-info" style="border-radius: 12px;margin-right:7px;" title="Number Of Cases" href="' . admin_url('clients/client/' . $aRow['userid']) . '?group=projects">' . $number_cases. '</a>';
 				}
 			//$summary .='<a class="btn btn-default" style="border-radius: 12px;margin-right:7px;" title="Number Of Legal Requests" href="' . admin_url('clients/client/' . $aRow['userid']) . '?group=tickets">' . $number_legals.' '._l('tickets').  '</a>';
-			$summary .='<a class="btn btn-info" style="border-radius: 12px;" title="Number Of POs" href="' . admin_url('clients/client/' . $aRow['userid']) . '?group=contracts">' . $number_pos.' '._l('po'). '</a>';
+			$summary .='<a class="btn btn-info" style="border-radius: 12px;" title="Number Of POs" href="' . admin_url('clients/client/' . $aRow['userid']) . '?group=pos">' . $number_pos.' '._l('po'). '</a>';
 			$row[]=$summary;
 			$row[]='<a class="btn btn-warning" style="border-radius: 12px;" title="Number Of Contracts" href="' . admin_url('clients/client/' . $aRow['userid']) . '?group=contracts">' . $number_contracts.' '._l('contracts').  '</a>';
 		

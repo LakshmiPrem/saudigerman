@@ -143,8 +143,8 @@ $(function() {
     initDataTable('.table-tickets-single', admin_url + 'tickets/index/false/' + customer_id, undefined, undefined, 'undefined', [$('table thead .ticket_created_column').index(), 'desc']);
 
     /* Customer profile contracts table */
-    initDataTable('.table-contracts-single-client', admin_url + 'contracts/table/' + customer_id, undefined,undefined, 'undefined', [6, 'desc']);
-
+    initDataTable('.table-contracts-single-client', admin_url + 'contracts/table/' + customer_id+'?type=contracts', undefined,undefined, 'undefined', [6, 'desc']);
+initDataTable('.table-contracts-single-client', admin_url + 'contracts/table_single/' + customer_id, undefined,undefined, 'undefined', [0, 'desc']);
     /* Custome profile contacts table */
     var contactsNotSortable = [];
     <?php if(is_gdpr() && get_option('gdpr_enable_consent_for_contacts') == '1'){ ?>
