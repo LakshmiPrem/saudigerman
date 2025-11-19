@@ -1,5 +1,5 @@
 <?php defined('BASEPATH') or exit('No direct script access allowed');
-$type=isset($type)?$type:$this->input->get('type');echo $type;
+$type=isset($type)?$type:$this->input->get('type');
 if($type=='contracts'){
   $table_data = array(
  _l('the_number_sign'),
