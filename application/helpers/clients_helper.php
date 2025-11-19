@@ -290,7 +290,13 @@ function app_init_customer_profile_tabs()
         'visible'  => (has_permission('contracts', '', 'view') || has_permission('contracts', '', 'view_own')),
         'position' => 60,
     ]);
-
+ $CI->app_tabs->add_customer_profile_tab('pos', [
+        'name'     => _l('po'),
+        'icon'     => 'fa fa-file',
+        'view'     => 'admin/clients/groups/pos',
+        'visible'  => (has_permission('contracts', '', 'view') || has_permission('contracts', '', 'view_own')),
+        'position' => 60,
+    ]);
     
 
     $CI->app_tabs->add_customer_profile_tab('tasks', [

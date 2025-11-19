@@ -3649,7 +3649,31 @@ function is_stamper($staff_id = '')
     }
 
     $CI->db->where('staffid', $staff_id)
+               
     ->where('is_stamper', '1');
 
     return $CI->db->count_all_results(db_prefix() . 'staff') > 0 ? true : false;
+}
+function  get_approval_access(){
+    return array(
+                 array('id'=>'signed_by','name'=>'Signed By'),
+                array('id'=>'read_by','name'=>'Read By'),
+                array('id'=>'delegate_to','name'=>'Delegate To'),
+          );
+  }
+  function  get_threshold_limits($type='contract'){
+    if($type=='contract'){
+    return array(
+                 array('id'=>'1','name'=>'<500K'),
+                array('id'=>'2','name'=>'>500'),
+                              
+          );
+}else{
+     return array(
+                 array('id'=>'1','name'=>'<500K'),
+                array('id'=>'2','name'=>'>500'),
+                array('id'=>'3','name'=>'>1M'),
+               
+          );
+  }
 }
