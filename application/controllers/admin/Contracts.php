@@ -3052,28 +3052,36 @@ for ($page = 1; $page <= $pageCount; $page++) {
                 );
 
                 // Position text below signature, aligned to left
-                $currentY = $y + $signatureHeight + 1;
+$currentY = $y + $signatureHeight + 1;
 
-                // 2. Add approver name below signature - aligned LEFT inside box
-                if ($inc_app_name && !empty($staff_name)) {
-                    $pdf->SetFont('Arial', 'B', 8);
-                    $pdf->SetTextColor(0, 0, 0);
-                    $textX = $x - 5; // ⭐ Same left alignment as signature
-                    $pdf->SetXY($textX, $currentY);
-                    
-                    $pdf->Cell($boxWidth - 4, $nameHeight, $staff_name, 0, 0, 'L');
-                    
-                    $currentY += $nameHeight + $spacing;
-                }
+// ⭐ Define minimum left margin (in mm) to prevent text from going off-page
+$minLeftMargin = 5; // 5mm from left edge of page
 
-                // 3. Add timestamp below name - aligned LEFT inside box
-                if ($inc_time_stamp && !empty($timestamp)) {
-                    $pdf->SetFont('Arial', '', 7);
-                    $pdf->SetTextColor(80, 80, 80);
-                    $textX = $x - 5; // ⭐ Same left alignment as signature
-                    $pdf->SetXY($textX, $currentY);
-                    $pdf->Cell($boxWidth - 4, $timestampHeight, $timestamp, 0, 0, 'L');
-                }
+// 2. Add approver name below signature - aligned LEFT inside box
+if ($inc_app_name && !empty($staff_name)) {
+    $pdf->SetFont('Arial', 'B', 8);
+    $pdf->SetTextColor(0, 0, 0);
+    
+    // ⭐ Calculate text X position with boundary check
+    $textX = max($x - 5, $minLeftMargin); // Don't go below minimum margin
+    
+    $pdf->SetXY($textX, $currentY);
+    $pdf->Cell($boxWidth - 4, $nameHeight, $staff_name, 0, 0, 'L');
+    
+    $currentY += $nameHeight + $spacing;
+}
+
+// 3. Add timestamp below name - aligned LEFT inside box
+if ($inc_time_stamp && !empty($timestamp)) {
+    $pdf->SetFont('Arial', '', 7);
+    $pdf->SetTextColor(80, 80, 80);
+    
+    // ⭐ Calculate text X position with boundary check
+    $textX = max($x - 5, $minLeftMargin); // Don't go below minimum margin
+    
+    $pdf->SetXY($textX, $currentY);
+    $pdf->Cell($boxWidth - 4, $timestampHeight, $timestamp, 0, 0, 'L');
+}
             }
         }
     }
