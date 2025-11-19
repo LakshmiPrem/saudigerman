@@ -3251,7 +3251,9 @@ $('#saveAllPositions').on('click', function() {
     stampBoxes.push({ x, y, page });
   });
   
-  const stampPages = $('.page-input[data-approver-id="company_stamp"]').val().trim();
+  // ⭐ FIX: Check if stamp page input exists before calling .val()
+  const stampPageInput = $('.page-input[data-approver-id="company_stamp"]');
+  const stampPages = stampPageInput.length > 0 ? (stampPageInput.val() || '').trim() : '';
   
   if (removedStamp.isRemoved && stampBoxes.length === 0) {
     hasStampBoxes = true;
