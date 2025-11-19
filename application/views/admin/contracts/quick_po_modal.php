@@ -25,6 +25,22 @@
            <label for="subject" ><?php echo _l('subject'); ?></label>
                <input type="text" name="subject" class="form-control" id="subject1">
          </div>
+           <div class="form-group col-md-6">
+               <label for="contract_value"><?php echo _l('contract_value'); ?></label>
+               <div class="input-group" data-toggle="tooltip" title="<?php echo _l('contract_value_tooltip'); ?>">
+                  <input type="number" class="form-control" id= "contract_value" name="contract_value" value="">
+                  <div class="input-group-addon">
+                     <?php $base_currency=$this->db->get_where('tblcurrencies',array('isdefault'=>1))->row();
+                     echo $base_currency->symbol; ?>
+                  </div>
+               </div>
+            </div>
+             <div class="col-md-6">
+			 <?php 
+                     $this->load->model('departments_model');
+                      $departments=$this->departments_model->get();
+                        echo render_select('contract_department',$departments,array('departmentid','name'),'contract_department','',array());?>
+			 </div>
 
               <div class="col-md-6">
                <div class="form-group select-placeholder">

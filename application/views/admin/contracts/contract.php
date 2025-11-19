@@ -818,7 +818,7 @@ if ($show_tabs) { ?>
            // }?>
          </div> 
 
-          <?php if($contract->type=='contracts'){ ?>
+         
 		
          <div class="col-md-4">
             <div class="form-group">
@@ -831,6 +831,7 @@ if ($show_tabs) { ?>
                </div>
             </div>
          </div>
+          <?php if($contract->type=='contracts'){ ?>
          <div class="col-md-4">
             <?php
             $selected = (isset($contract) ? $contract->contract_type : '');
@@ -888,14 +889,14 @@ if ($show_tabs) { ?>
                      $staffs=$this->db->get_where('tblstaff',array('active'=>1))->result_array(); 
                         echo render_select('purchaser',$staffs,array('staffid',array('firstname','lastname')),'purchaser',$selected,array());?>
 			 </div>
-
+ <?php } ?>
        <div class="col-md-4">
 			 <?php $selected = (isset($contract) ? $contract->contract_department : '');
                      $this->load->model('departments_model');
                       $departments=$this->departments_model->get();
                         echo render_select('contract_department',$departments,array('departmentid','name'),'contract_department',$selected,array());?>
 			 </div>
-       <?php } ?>
+      
 
 
            <?php if((isset($contract) && $contract->contract_filename == NULL)){ ?> 
