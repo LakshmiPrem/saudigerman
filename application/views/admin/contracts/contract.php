@@ -2681,7 +2681,8 @@ const savedPlaceholders = <?= json_encode($contract_approvals) ?>;
 const savedStampPlaceholder = <?= json_encode($contract->stamp_placeholder ?? null) ?>;
 const loggedInStaffId = "<?= $user_id ?>";
 const isAdmin = <?= is_admin() ? 'true' : 'false' ?>;
-const allowedByAddedFrom = <?= $allowed_by_addedfrom ? 'true' : 'false' ?>; // ✅ NEW
+const allowedByAddedFrom = <?= $allowed_by_addedfrom ? 'true' : 'false' ?>; // ✅ Creator permission
+const isStamper = <?= is_stamper(get_staff_user_id()) ? 'true' : 'false' ?>; // ✅ NEW: Stamper permission
 
 // ✅ Track removed placeholders
 const removedApprovers = new Set();
@@ -2741,10 +2742,18 @@ function createPlaceholderBox(id, name, type, x, y, page, isSaved = false) {
   
   const pageLabel = page === 'all' ? 'all' : 'p' + page;
   
-  // ✅ Only show close button if allowedByAddedFrom is true
-  const closeButton = allowedByAddedFrom 
-    ? '<span class="remove-box">×</span>' 
-    : '';
+  // ⭐ Determine if user can edit this placeholder
+  let canEdit = false;
+  if (type === 'stamp') {
+    // ✅ For stamps: only stamper can edit
+    canEdit = isStamper;
+  } else {
+    // ✅ For signatures: only creator can edit
+    canEdit = allowedByAddedFrom;
+  }
+  
+  // ✅ Only show close button if user has permission
+  const closeButton = canEdit ? '<span class="remove-box">×</span>' : '';
   
   box.innerHTML = `
     ${closeButton}
@@ -2758,10 +2767,10 @@ function createPlaceholderBox(id, name, type, x, y, page, isSaved = false) {
   box.style.top = `${y}px`;
   box.dataset.approver_id = id;
   box.dataset.page = page;
-  box.style.cursor = allowedByAddedFrom ? 'move' : 'default'; // ✅ Only show move cursor if allowed
+  box.style.cursor = canEdit ? 'move' : 'default'; // ✅ Only show move cursor if allowed
   
   // ✅ Add remove functionality (only if button exists)
-  if (allowedByAddedFrom) {
+  if (canEdit) {
     const removeBtn = box.querySelector('.remove-box');
     if (removeBtn) {
       removeBtn.addEventListener('click', function(e) {
@@ -2787,8 +2796,8 @@ function createPlaceholderBox(id, name, type, x, y, page, isSaved = false) {
     }
   }
   
-  // ✅ Make box draggable on mousedown (only if allowedByAddedFrom)
-  if (allowedByAddedFrom) {
+  // ✅ Make box draggable on mousedown (only if user has permission)
+  if (canEdit) {
     box.addEventListener('mousedown', function(e) {
       // Don't start drag if clicking the close button
       if (e.target.classList.contains('remove-box')) return;
@@ -2805,9 +2814,6 @@ function createPlaceholderBox(id, name, type, x, y, page, isSaved = false) {
       box.style.opacity = '0.7';
       box.style.zIndex = '1000';
     });
-  } else {
-    // For non-allowed users, show pointer cursor but no drag
-    box.style.cursor = 'default';
   }
   
   return box;
@@ -2866,6 +2872,19 @@ pdfContainer.addEventListener('drop', e => {
   const name = e.dataTransfer.getData('name');
   const type = e.dataTransfer.getData('type');
 
+  // ⭐ Permission check for dropping
+  if (type === 'stamp') {
+    if (!isStamper) {
+      alert('You do not have permission to add stamp placeholders.');
+      return;
+    }
+  } else {
+    if (!allowedByAddedFrom) {
+      alert('You do not have permission to add signature placeholders.');
+      return;
+    }
+  }
+
   // ✅ Check if this approver has already signed (for signatures only)
   if (type !== 'stamp') {
     const approver = savedPlaceholders.find(a => a.staffid == id);
@@ -2875,6 +2894,7 @@ pdfContainer.addEventListener('drop', e => {
     }
   }
 
+  // ⭐ Check for existing placeholder and remove it to prevent duplication
   const existingBox = document.querySelector(
     `.sign-box[data-approver_id="${id}"][data-page="${pageNum}"]`
   );
@@ -2998,6 +3018,19 @@ function setupDragEvents() {
       const name = e.currentTarget.dataset.name || e.currentTarget.getAttribute('data-name');
       const type = e.currentTarget.dataset.type || e.currentTarget.getAttribute('data-type') || 'signature';
       
+      // ⭐ Check permission before allowing drag
+      if (type === 'stamp' && !isStamper) {
+        e.preventDefault();
+        alert('You do not have permission to drag stamp placeholders.');
+        return;
+      }
+      
+      if (type !== 'stamp' && !allowedByAddedFrom) {
+        e.preventDefault();
+        alert('You do not have permission to drag signature placeholders.');
+        return;
+      }
+      
       if (id && name) {
         e.dataTransfer.setData('id', id);
         e.dataTransfer.setData('name', name);
@@ -3021,7 +3054,8 @@ function drawSavedPlaceholders(pageNum) {
   if (!savedPlaceholders || !Array.isArray(savedPlaceholders)) return;
 
   savedPlaceholders.forEach(a => {
-    if (!isAdmin && a.staffid != loggedInStaffId) return;
+    // ⭐ Show signatures to creator OR to the approver themselves
+    if (!isAdmin && !allowedByAddedFrom && a.staffid != loggedInStaffId) return;
     
     if (!a.sign_placeholder || a.sign_placeholder === '[]' || a.sign_placeholder.trim() === '') return;
     
@@ -3053,6 +3087,9 @@ function drawSavedPlaceholders(pageNum) {
 
 // ✅ Draw saved stamp placeholder
 function drawSavedStampPlaceholder(pageNum) {
+  // ⭐ Only show stamp to stamper or creator
+  if (!isStamper && !allowedByAddedFrom && !isAdmin) return;
+  
   if (!savedStampPlaceholder || savedStampPlaceholder === '[]' || savedStampPlaceholder.trim() === '') return;
   
   let coords;
@@ -3079,6 +3116,8 @@ function drawSavedStampPlaceholder(pageNum) {
     }
   });
 }
+
+
 
 $(document).ready(function() {
     // Store page input values for all approvers
