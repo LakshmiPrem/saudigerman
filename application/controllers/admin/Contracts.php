@@ -4,7 +4,7 @@ use PhpOffice\PhpWord\Shared\Html;
 use SebastianBergmann\Diff\Differ;
 use Smalot\PdfParser\Parser;
 use PhpOffice\PhpWord\IOFactory;
- require_once  APPPATH . '/vendor/smalot/pdfparser/alt_autoload.php-dist';
+require_once  APPPATH . '/vendor/smalot/pdfparser/alt_autoload.php-dist';
 defined('BASEPATH') or exit('No direct script access allowed');
 
 class Contracts extends AdminController
