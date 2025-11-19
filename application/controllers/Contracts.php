@@ -40,20 +40,30 @@ class Contracts extends AdminController
     }
 
     
-    public function table($clientid = '',$opposite_party='',$mtype='po')
+    public function table($clientid = '',$opposite_party='')
     {
         if (!has_permission('contracts', '', 'view') && !has_permission('contracts', '', 'view_own')) {
             ajax_access_denied();
         }
-echo $mtype;
+
         $this->app->get_table_data('contracts', [
             'clientid' => $clientid,
-			'opposite_party'=> !empty($opposite_party)?$opposite_party:'',
-            'tabletype'=>$mtype,
+			'opposite_party'=> $opposite_party
         ]);
     }
    
+ public function table_single($clientid = '',$opposite_party='')
+    {
+        if (!has_permission('contracts', '', 'view') && !has_permission('contracts', '', 'view_own')) {
+            ajax_access_denied();
+        }
 
+        $this->app->get_table_data('contracts', [
+            'clientid' => $clientid,
+            'opposite_party'=> $opposite_party,
+            'type'=>'po'
+        ]);
+    }
     /* Edit contract or add new contract */
     public function contract($id = '')
     {
