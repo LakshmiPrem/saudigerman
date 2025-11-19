@@ -87,7 +87,7 @@ class Contracts extends AdminController
 			'opposite_party'=> $opposite_party
         ]);
     }
-    public function table($clientid = '',$opposite_party='')
+    public function table($clientid = '',$opposite_party='',$mtype='po')
     {
         if (!has_permission('contracts', '', 'view') && !has_permission('contracts', '', 'view_own')) {
             ajax_access_denied();
@@ -95,7 +95,8 @@ class Contracts extends AdminController
 
         $this->app->get_table_data('contracts', [
             'clientid' => $clientid,
-			'opposite_party'=> $opposite_party
+            'opposite_party'=>$opposite_party,
+            'tabletype'=>$mtype,
         ]);
     }
    

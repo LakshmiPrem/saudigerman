@@ -2,15 +2,15 @@
 
 defined('BASEPATH') or exit('No direct script access allowed');
 
-$base_currency = get_base_currency();
-echo $tabletype = isset($tabletype)?$tabletype:$this->ci->input->get('type');
+$base_currency = get_base_currency(); 
+ $tabletype = isset($tabletype)?$tabletype:$this->ci->input->get('type');
 
 if($tabletype=='contracts'){
     $aColumns = [
     db_prefix() . 'contracts.id as id',
     'subject',
     get_sql_select_client_company(),
-    'other_party1',
+    'other_party',
    
     '(SELECT CONCAT(tblstaff.firstname," ",tblstaff.lastname)  FROM tblstaff  WHERE tblstaff.staffid = tblcontracts.purchaser) as purchaser',
     '(SELECT tbldepartments.name  FROM tbldepartments  WHERE tbldepartments.departmentid = tblcontracts.contract_department) as department',
@@ -64,12 +64,6 @@ foreach ($custom_fields as $key => $field) {
 
 $where  = [];
 $filter = [];
-
-if ($tabletype == 'po') {
-    array_push($where, ' AND tblcontracts.type = "po"');
-} else {
-    array_push($where, ' AND tblcontracts.type = "contracts"');
-}
 
 $projectId = $this->ci->input->get('project_id');
 if ($projectId) {
@@ -159,7 +153,7 @@ if ($opposite_party != '' && $opposite_party !=0) {
     array_push($where, ' AND other_party=' . $this->ci->db->escape_str($opposite_party));
 }
 if ($tabletype!=''){
-    echo $tabletype;
+   
 if ($tabletype == 'po') {
     array_push($where, ' AND tblcontracts.type = "po"');
 } else {
