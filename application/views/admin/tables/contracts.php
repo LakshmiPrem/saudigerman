@@ -3,7 +3,7 @@
 defined('BASEPATH') or exit('No direct script access allowed');
 
 $base_currency = get_base_currency(); 
- echo $tabletype = isset($this->ci->input->get('type'))?$this->ci->input->get('type'):$tabletype;
+ echo $tabletype =!empty($this->ci->input->get('type'))?$this->ci->input->get('type'):$tabletype;
 
 if($tabletype=='contracts'){
     $aColumns = [
