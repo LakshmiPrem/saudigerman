@@ -1363,7 +1363,7 @@ $templateProcessor->setImageValue('Signature', function () {
                     }
                     
                         $success = true;
-                        $message = _l('Added_successfully');
+                        $message = _l('added_successfully', _l('contract');
                     }
                     echo json_encode([
                         'success' => $success,
