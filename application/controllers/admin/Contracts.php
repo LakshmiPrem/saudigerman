@@ -2594,7 +2594,7 @@ if ($next_approver) {
     
     if ($next_staff) {
         // Check approval_heading_id to determine email subject and link
-        $is_external_review = isset($next_approver['approval_heading_id']) && (int)$next_approver['approval_heading_id'] === 11;
+        $is_external_review = isset($next_approver['approval_type']) && $next_approver['approval_type'] == 'read_by';
         
         if ($is_external_review) {
             $contract_link = admin_url('admin/contracts/contract_external_review/' . $contract_id);
@@ -2851,8 +2851,8 @@ if ($next_approver) {
     
     if ($next_staff) {
         // Check approval_heading_id to determine email subject and link
-        $is_external_review = isset($next_approver['approval_heading_id']) && (int)$next_approver['approval_heading_id'] === 11;
-        
+       // $is_external_review = isset($next_approver['approval_heading_id']) && (int)$next_approver['approval_heading_id'] === 11;
+         $is_external_review = isset($next_approver['approval_type']) && $next_approver['approval_type'] == 'read_by';
         if ($is_external_review) {
             $contract_link = admin_url('contracts/contract_external_review/' . $contract_id);
             $email_subject = _l('Contract Ready for Your Review');
@@ -3153,7 +3153,7 @@ if ($next_approver) {
     
     if ($next_staff) {
         // Check approval_heading_id to determine email subject and link
-        $is_external_review = isset($next_approver['approval_heading_id']) && (int)$next_approver['approval_heading_id'] === 11;
+        $is_external_review = isset($next_approver['approval_type']) && $next_approver['approval_type'] == 'read_by';
         
         if ($is_external_review) {
             $contract_link = admin_url('contracts/contract_external_review/' . $contract_id);
@@ -3714,10 +3714,11 @@ public function review_pdf($id,$type)
     // Update approval_status = 6 for this contract and staff
     $this->db->where('rel_id', $id);
     $this->db->where('staffid', $staff_id);
-    $this->db->where('approval_heading_id', 11);
+    $this->db->where('approval_type', 'read_by');
     $this->db->update('tblapprovals', [
         'approval_status' => 7,
-        'status' => 'reviewed'
+        'status' => 'reviewed',
+        'signed_at' => date('Y-m-d H:i:s')
     ]);
      $contract = $this->db->where('id', $id)->get('tblcontracts')->row();
     $all_approvers = $this->db->where([
@@ -3743,8 +3744,8 @@ if ($next_approver) {
     
     if ($next_staff) {
         // Check approval_heading_id to determine email subject and link
-        $is_external_review = isset($next_approver['approval_heading_id']) && (int)$next_approver['approval_heading_id'] === 11;
-        
+       // $is_external_review = isset($next_approver['approval_heading_id']) && (int)$next_approver['approval_heading_id'] === 11;
+         $is_external_review = isset($next_approver['approval_type']) && $next_approver['approval_type'] == 'read_by';
         if ($is_external_review) {
             $contract_link = admin_url('contracts/contract_external_review/' . $id);
             if($type=='contract'){
