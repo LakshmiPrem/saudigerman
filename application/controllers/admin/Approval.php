@@ -1509,6 +1509,7 @@ public function approvals()
                                 <thead>
                                     <tr>
                                         <th>'._l('approve_by').'</th>
+                                        <th>'._l('approval_type').'</th>
                                         <th>'._l('approval_status').'</th>
                                         <th>'._l('remarks').'</th>
                                     </tr>
@@ -1532,7 +1533,7 @@ public function approvals()
                             
                             $tbody .= '<tr>';
                             $tbody .= '<td>'.get_staff_full_name($approval['staffid']).'<br><b>'.get_approval_heading_name_by_id($approval['approval_heading_id']).'</b></td>';
-                            
+                            $tbody .= '<td>'._l($approval['approval_type']).'</td>';
                             if($type!='' && $type=='overview'){
                                 foreach($approval_statuses as $status){
                                     '<td>'.$status['name'].'</td>' ;
@@ -1590,6 +1591,7 @@ public function approvals()
                     
                     $tbody .= '<tr>';
                     $tbody .= '<td>' . get_staff_full_name($approval['staffid']) . '<br><b>' . get_approval_heading_name_by_id($approval['approval_heading_id']) . '</b></td>';
+                    $tbody .= '<td>'._l($approval['approval_type']).'</td>';
                     
                     // STATUS COLUMN
                     if ($type == 'overview') {

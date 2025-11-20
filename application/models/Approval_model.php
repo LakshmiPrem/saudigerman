@@ -154,6 +154,7 @@ public function get_approval_headings_by_threshold($rel_type, $threshold_id) {
     $this->db->where('ah.rel_type', $rel_type);
     $this->db->where('ah.threshold_limit <=', $threshold_id);
     $this->db->where('ah.active', 1);
+    $this->db->where('ah.name !=', 'Viewer Access');
     $this->db->order_by('ah.head_order', 'ASC');
     
     $headings = $this->db->get()->result_array();

@@ -3351,5 +3351,7 @@ $lang['po_summary_signed']     ='Signed';
 
 $lang['approval_designation']     ='Designation';
 $lang['approval_type']     ='Approval Access';
+$lang['signed_by']     ='Signed By';
+$lang['read_by']     ='Read By';
 
 
