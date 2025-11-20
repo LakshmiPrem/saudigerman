@@ -1052,7 +1052,7 @@ public function approvals()
         
         $headings = $data['approval_heading_id'];
         $approval_assigned = $data['approval_assigned'];
-        $approval_access = $data['approval_access'];
+        $approval_type = $data['approval_type'];
         
         $inserted = false;
         $notifiedUsers = [];
@@ -1062,7 +1062,7 @@ public function approvals()
         foreach($headings as $key => $heading) { 
             $insert['approval_heading_id'] = $heading;
             $insert['staffid'] = $approval_assigned[$key];
-            $insert['approval_access'] = $approval_access[$key];
+            $insert['approval_type'] = $approval_type[$key];
           
             
             if($approvecount > $count) {
@@ -1292,7 +1292,7 @@ public function approvals()
     );
 
 
-    $data['approval_access']=get_approval_access();
+    $data['approval_type']=get_approval_access();
     
     $data['statuses'] = $this->tickets_model->get_ticket_status();
     

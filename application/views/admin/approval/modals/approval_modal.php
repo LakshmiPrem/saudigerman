@@ -114,7 +114,7 @@
             <tr id="bsrow<?=$i?>">
                 <input type="hidden" name="approval_row_id[]" value="<?php echo $bs['id']; ?>">
                 <td><?php echo render_select('approval_heading_id[]', $approval_headings, array('id','name'), '', $bs['approval_heading_id'], $st1); ?></td>
-                <td><?php echo render_select('approval_access[]', $approval_access, array('id','name'), '', $bs['approval_access'], $st1); ?></td>
+                <td><?php echo render_select('approval_type[]', $approval_type, array('id','name'), '', $bs['approval_type'], $st1); ?></td>
                 <td><?php echo render_select('approval_assigned[]', $staffs, array('staffid', array('firstname','lastname')), '', $bs['staffid'], $st1, [], '', '', false); ?></td>
                 <?php if($bs['approval_status'] == 1 || $bs['approval_status'] == 2) { ?>                                             
                 <td width="10%" contenteditable="false">
@@ -131,7 +131,7 @@
             ?>
             <tr id="bsrow<?=$i?>">
                 <td><?php echo render_select('approval_heading_id[]', $approval_headings, array('id','name'), '', $approver['id'], [], [], '', '', false); ?></td>
-                <td><?php echo render_select('approval_access[]', $approval_access, array('id','name'), '', '', [], [], '', '', false); ?></td>
+                <td><?php echo render_select('approval_type[]', $approval_type, array('id','name'), '', '', [], [], '', '', false); ?></td>
                 <td>
                     <?php 
                     // ✅ Build staff dropdown with only staff from this designation
@@ -175,7 +175,7 @@
         ?>
         <tr id="bsrow<?=$i?>">
             <td><?php echo render_select('approval_heading_id[]', $approval_headings, array('id','name'), '', '', [], [], '', '', false); ?></td>
-            <td><?php echo render_select('approval_access[]', $approval_access, array('id','name'), '', '', [], [], '', '', false); ?></td>
+            <td><?php echo render_select('approval_type[]', $approval_type, array('id','name'), '', '', [], [], '', '', false); ?></td>
             <td><?php echo render_select('approval_assigned[]', $staffs, array('staffid', array('firstname','lastname')), '', '', [], [], '', '', false); ?></td>
             <td contenteditable="false">
                 <button type="button" class="btn btn-danger btn-bs-delete DeleteBoxRow btn-sm"><i class="fa fa-remove"></i></button>
@@ -232,7 +232,7 @@ $(document).ready(function(){
   <?php endif; ?>
 
   var selectbox = '<?php echo render_select('approval_heading_id[]',$approval_headings,array('id','name'),'','',[],[],'','',false);?>';
-  var selectbox2 = '<?php echo render_select('approval_access[]',$approval_access,array('id','name'),'','',[],[],'','',false);?>';
+  var selectbox2 = '<?php echo render_select('approval_type[]',$approval_type,array('id','name'),'','',[],[],'','',false);?>';
  var selectbox1 = '<?php echo render_select('approval_assigned[]',$staffs,array('staffid',array('firstname','lastname')),'','',[],[],'','',false);?>';
   var actions           = '<button type="button" class="btn btn-danger btn-bs-delete DeleteBoxRow"><i class="fa fa-remove"></i></button>';
   var billing_stage_div = $("._approval_stages_table tbody td:first-child").html();
