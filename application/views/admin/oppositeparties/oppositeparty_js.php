@@ -111,7 +111,7 @@ $(function() {
    /* Custome profile contracts table */
     var contractsNotSortable = $('.table-contracts-single-client').find('th').length - 1;
 	
-    _table_api = initDataTable('.table-contracts-single-client', admin_url + 'contracts/table/'+client_id+'/' + customer_id, [contractsNotSortable], [contractsNotSortable], 'undefined', [3, 'DESC']);
+    _table_api = initDataTable('.table-contracts-single-client', admin_url + 'contracts/table/'+client_id+'/' + customer_id+'/'+'contracts', [contractsNotSortable], [contractsNotSortable], 'undefined', [3, 'DESC']);
 /**********************************************************************************************/
       /* Custome profile documents table */
     var documentsNotSortable = $('.table-documents-single-client').find('th').length - 1;

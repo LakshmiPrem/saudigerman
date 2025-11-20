@@ -422,10 +422,20 @@ function new_quick_contract(clientid='',company=''){
 
 
 	if(clientid!=''){
-	 var ctype = $('select[name="client"]');
-                ctype.find('option:first').after('<option value="'+clientid+'">'+company+'</option>');
-                ctype.selectpicker('val',clientid);
-                ctype.selectpicker('refresh');	
+	 var ctype = $('#quick_contract-form select[name="client"]');
+   // Clear old selection if needed
+ctype.find('option[value="' + clientid + '"]').remove();
+
+// Add option and mark it selected
+ctype.append('<option value="' + clientid + '" selected>' + company + '</option>');
+
+// Tell selectpicker
+ctype.selectpicker('refresh');
+ ctype.selectpicker('val',clientid);
+
+// Update the visible label (Perfex sometimes needs double refresh)
+ctype.trigger('change');
+               	
 		$('#divclientcontract').addClass('hide');
 		
 	}

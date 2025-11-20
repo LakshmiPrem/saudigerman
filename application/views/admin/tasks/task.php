@@ -229,8 +229,7 @@
                         <label for="rel_type" class="control-label"><?php echo _l('task_related_to'); ?></label>
                         <select name="rel_type" class="selectpicker" id="rel_type" data-width="100%" data-none-selected-text="<?php echo _l('dropdown_non_selected_tex'); ?>">
                            <option value=""></option>
-                           <option value="project"
-                              <?php if(isset($task) || $this->input->get('rel_type')){if($rel_type == 'project'){echo 'selected';}} ?>><?php echo _l('project'); ?></option>
+                          
                            <option value="customer"
                               <?php if(isset($task) || $this->input->get('rel_type')){if($rel_type == 'customer'){echo 'selected';}} ?>>
                               <?php echo _l('client'); ?>
@@ -242,7 +241,9 @@
                            <option value="ticket" <?php if(isset($task) || $this->input->get('rel_type')){if($rel_type == 'ticket'){echo 'selected';}} ?>>
                               <?php echo _l('ticket'); ?>
                            </option>
-                          
+                        <!--  
+                            <option value="project"
+                              <?php if(isset($task) || $this->input->get('rel_type')){if($rel_type == 'project'){echo 'selected';}} ?>><?php echo _l('project'); ?></option>
                             <option value="trade_license" <?php if(isset($task) || $this->input->get('rel_type')){if($rel_type == 'trade_license'){echo 'selected';}} ?>>
                               <?php echo _l('trade_licenses'); ?>
                            </option>
@@ -254,7 +255,7 @@
  							      </option>
                             <option value="chequebounce" <?php if(isset($task) || $this->input->get('rel_type')){if($rel_type == 'chequebounce'){echo 'selected';}} ?>>
                               <?php echo _l('chequebounce'); ?>
-                           </option>
+                           </option>-->
                             <?php
                                 hooks()->do_action('task_modal_rel_type_select', ['task' => (isset($task) ? $task : 0), 'rel_type' => $rel_type]);
                             ?>

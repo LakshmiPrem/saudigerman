@@ -180,13 +180,22 @@ function new_quick_po(clientid='',company=''){
   });
 
 
-	if(clientid!=''){
-	 var ctype = $('select[name="client"]');
-                ctype.find('option:first').after('<option value="'+clientid+'">'+company+'</option>');
-                ctype.selectpicker('val',clientid);
-                ctype.selectpicker('refresh');	
-		$('#divclientcontract').addClass('hide');
-		
+	if(clientid!=''){ alert(clientid);
+	 var ctype = $('#quick_po-form select[name="client"]');
+               // ctype.find('option:first').after('<option value="'+clientid+'">'+company+'</option>');
+   	$('#divclientcontract').addClass('hide');
+		// Clear old selection if needed
+ctype.find('option[value="' + clientid + '"]').remove();
+
+// Add option and mark it selected
+ctype.append('<option value="' + clientid + '" selected>' + company + '</option>');
+
+// Tell selectpicker
+ctype.selectpicker('refresh');
+ ctype.selectpicker('val',clientid);
+
+// Update the visible label (Perfex sometimes needs double refresh)
+ctype.trigger('change');
 	}
     $('#quick_po').modal('show');
     $('.edit-title').addClass('hide');
