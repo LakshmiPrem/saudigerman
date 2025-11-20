@@ -3184,6 +3184,25 @@ if ($next_approver) {
             $email_subject,
             $message
         );
+
+          $notify=0;
+          $description=$clientType.'_approval';
+          if($notify == 0) {
+                        $notified = add_notification([
+                            'description'     => $description,
+                            'touserid'        => $next_staff->email,
+                            'fromcompany'     => 1,
+                            'fromuserid'      => get_staff_user_id(),
+                            'link'            => $contract_link,
+                            'additional_data' => serialize([
+                                $contract->subject,
+                            ]),
+                        ]);
+                        if ($notified) {
+                            array_push($notifiedUsers, $approval_assigned[$key]);
+                        }
+                        $notify++;
+                    }
     }
 }
 
@@ -3785,6 +3804,25 @@ if ($next_approver) {
             $email_subject,
             $message
         );
+
+        $description = $type.'_approval';
+        $notify = 0;
+        if($notify == 0) {
+                        $notified = add_notification([
+                            'description'     => $description,
+                            'touserid'        => $next_staff->email,
+                            'fromcompany'     => 1,
+                            'fromuserid'      => get_staff_user_id(),
+                            'link'            => $contract_link,
+                            'additional_data' => serialize([
+                                $contract->subject,
+                            ]),
+                        ]);
+                        if ($notified) {
+                            array_push($notifiedUsers, $approval_assigned[$key]);
+                        }
+                        $notify++;
+                    }
     }
 }
 
