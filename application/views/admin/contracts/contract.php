@@ -462,9 +462,9 @@ if ($show_tabs) { ?>
                                                          <i class="fa fa-globe"></i>
                                                          <?php echo _l('generate_contract_AI'); ?>
                                                          </a>
-                                                         <a href="#" data-toggle="tooltip" data-title="<?php echo _l('upload_contract'); ?>" class="btn btn-info" onclick="upload_contractfile(<?php echo $contract->id; ?>); return false;">
+                                                         <a href="#" data-toggle="tooltip" data-title="<?php echo _l('upload').' '._l($contract->type); ?>" class="btn btn-info" onclick="upload_contractfile(<?php echo $contract->id; ?>); return false;">
                                                          <i class="fa fa-file-pdf-o"></i>
-                                                         <?php echo _l('upload_contract'); ?>
+                                                         <?php echo _l('upload').' '._l($contract->type); ?>
                                                          </a>
                                                          
                                                          <!--<a href="#" class="btn btn-default dropdown-toggle hide" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><i class="fa fa-file-pdf-o"></i><?php if(is_mobile()){echo ' PDF';} ?> <span class="caret"></span></a>-->
