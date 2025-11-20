@@ -12,6 +12,10 @@
             <div class="modal-body">
                 <div class="row">
                     <div class="col-md-12">
+        
+            <?php echo render_select('designation_id',$designations,array('id','name'),'approval_heading'); ?>
+          </div>
+                    <div class="col-md-12">
                         <div id="additional_approval"></div>
                         <?php echo render_input('name', 'contract_type_name'); ?>
                     </div>
@@ -31,6 +35,10 @@
                        
                         <?php echo render_input('head_order', 'approval_order'); ?>
                     </div>
+                     <div class="col-md-12">
+                    <?php $threshold_limits=get_threshold_limits();?>
+            <?php echo render_select('threshold_limit',$threshold_limits,array('id','name'),'threshold_limit'); ?>
+          </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -44,13 +52,21 @@
 
 <script>
   window.addEventListener('load',function(){
-      _validate_form($('#hearing_document_type-type-form'),{name:'required'},manage_hearing_document_type);
+      _validate_form($('#hearing_document_type-type-form'),{designation_id:'required',name:'required'},manage_hearing_document_type);
       $('#hearing_document_type').on('hidden.bs.modal', function(event) {
         $('#additional_approval').html('');
         $('#hearing_document_type input[name="name"]').val('');
 		  $('#hearing_document_type input[name="head_order"]').val('');
         $('.add-title').removeClass('hide');
         $('.edit-title').removeClass('hide');
+    });
+     // On change of the select
+    $('#designation_id').on('change', function() {
+        var selectedText = $("#designation_id option:selected").text();
+        
+        // Display the selected name
+         $('#hearing_document_type input[name="name"]').val(selectedText);
+       // $('#designation_name_display').text(selectedText);
     });
   });
   function manage_hearing_document_type(form) {
@@ -80,15 +96,17 @@ function new_approval_heading(){
 }
 function edit_approval_heading(invoker,id){
     var name = $(invoker).data('name');
-	// var category = $(invoker).data('cat');
+	 var designation = $(invoker).data('desig');
 	 var order = $(invoker).data('order');
+     var limit = $(invoker).data('limit');
 	 var rtype = $(invoker).data('type');
     $('#additional_approval').append(hidden_input('id',id));
     $('#hearing_document_type input[name="name"]').val(name);
 //	$('#hearing_document_type input[name="rel_id"]').val(category);
 	// $("#rel_id").selectpicker('val',category);
 	 $("#rel_type").selectpicker('val',rtype);
-	// $("#rel_type").val(category);
+	 $("#designation_id").selectpicker('val',designation);
+      $("#threshold_limit").selectpicker('val',limit);
 	$('#hearing_document_type input[name="head_order"]').val(order);
     $('#hearing_document_type').modal('show');
     $('.add-title').addClass('hide');

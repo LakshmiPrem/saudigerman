@@ -3661,19 +3661,12 @@ function  get_approval_access(){
                 array('id'=>'delegate_to','name'=>'Delegate To'),
           );
   }
-  function  get_threshold_limits($type='contract'){
-    if($type=='contract'){
-    return array(
-                 array('id'=>'1','name'=>'<500K'),
-                array('id'=>'2','name'=>'>500'),
-                              
-          );
-}else{
+  function  get_threshold_limits(){
      return array(
                  array('id'=>'1','name'=>'<500K'),
                 array('id'=>'2','name'=>'>500'),
                 array('id'=>'3','name'=>'>1M'),
                
           );
-  }
+  
 }
