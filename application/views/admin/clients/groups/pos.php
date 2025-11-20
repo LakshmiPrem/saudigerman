@@ -1,9 +1,9 @@
 <?php defined('BASEPATH') or exit('No direct script access allowed'); ?>
 <?php if(isset($client)){ 
 	?>
-<h4 class="customer-profile-group-heading"><?php echo _l('pos_tab'); ?></h4>
+<h4 class="customer-profile-group-heading"><?php echo _l('purchase_order'); ?></h4>
 <?php if(has_permission('contracts','','create')){ ?>
-<a onclick="new_quick_po();return false;" href="#" class="btn btn-info mbot25<?php if($client->active == 0){echo ' disabled';} ?>"><?php echo _l('new_po'); ?></a>
+<a onclick="new_quick_po(<?=$client->userid?>,'<?=$client->company?>');return false;" href="#" class="btn btn-info mbot25<?php if($client->active == 0){echo ' disabled';} ?>"><?php echo _l('new_po'); ?></a>
 <div class="clearfix"></div>
 <?php } ?>
 <?php  //$this->load->view('admin/contracts/table_html', array('class'=>'contracts-single-client')); ?>
