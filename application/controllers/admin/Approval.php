@@ -36,7 +36,8 @@ class Approval extends AdminController
 		$data['category']             = $this->tickets_model->get_service();
 		$data['reltypes']= get_approval_service();
         $data['title'] = _l('approval_heading');
-		
+		$this->load->model('designations_model');
+        $data['designations']  = $this->designations_model->get();
         $this->load->view('admin/approval/manage_approval_headings', $data);
 		
     }
