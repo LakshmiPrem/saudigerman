@@ -49,8 +49,8 @@ foreach ($contract_approvals as $approval) {
             $approval['status'] !== 'reviewed' && 
             $approval['status'] !== 'signed' && 
             $approval['status'] !== 'rejected' &&
-            isset($approval['approval_type']) && 
-            $approval['approval_type'] === 'read_by') {
+            isset($approval['approval_heading_id']) && 
+            (int)$approval['approval_heading_id'] === 11) {
             $show_review_button = true;
         }
         break;
@@ -240,10 +240,10 @@ if (is_admin()) {
 } else {
     // Non-admin users need to meet the conditions
     foreach ($contract_approvals as $approvals) {
-        $approval_heading_id = isset($approvals['approval_type']) ? $approvals['approval_type'] : '';
+        $approval_heading_id = isset($approvals['approval_heading_id']) ? (int)$approvals['approval_heading_id'] : 0;
 
         if (
-            $approval_heading_id != 'read_by' &&
+            $approval_heading_id != 11 &&
             isset($approvals['staffid']) &&
             (int)$approvals['staffid'] == (int)get_staff_user_id()
         ) {
@@ -1139,7 +1139,7 @@ foreach ($contract_approvals as $approval) {
 $first_approver = null;
 if (!empty($contract_approvals)) {
     foreach ($contract_approvals as $approver) {
-        if ($approver['approval_type'] != 'read_by') {
+        if ($approver['approval_heading_id'] != 11) {
             $first_approver = $approver;
             break;
         }
@@ -1164,7 +1164,7 @@ if (!empty($contract_approvals)) {
 
             <?php 
                 // Skip this approver if approval_heading_id == 11
-                if (isset($a['approval_type']) && $a['approval_type'] === 'read_by') {
+                if (isset($a['approval_heading_id']) && (int)$a['approval_heading_id'] === 11) {
                     continue;
                 }
             ?>
@@ -3123,7 +3123,7 @@ $(document).ready(function() {
     
     // ⭐ Load existing page inputs from PHP data
     <?php foreach ($contract_approvals as $a): ?>
-        <?php if (isset($a['approval_type']) && $a['approval_type'] !== 'read_by'): ?>
+        <?php if (isset($a['approval_heading_id']) && (int)$a['approval_heading_id'] !== 11): ?>
             approverPageInputs['<?= $a['staffid'] ?>'] = '<?= isset($a['pages']) ? $a['pages'] : '' ?>';
         <?php endif; ?>
     <?php endforeach; ?>
