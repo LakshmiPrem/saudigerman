@@ -1059,10 +1059,11 @@ public function approvals()
         $notify = 0;
         $firstinsert = 0;
         
+        $first_mail_sent=0;
+        $first_notification_sent=0;
         foreach($headings as $key => $heading) { 
             $insert['approval_heading_id'] = $heading;
             $insert['staffid'] = $approval_assigned[$key];
-        
             $insert['approval_type'] = $approval_type[$key];
           
             
@@ -1112,6 +1113,8 @@ public function approvals()
             
             if($result > 0 || $result == true) {
 
+                if($first_mail_sent==0){
+
                 // ✅ Prepare email data
                 $approverName = get_staff_full_name($insert['staffid']);
                 $remarks = $insert['approval_remarks'];
@@ -1147,13 +1150,18 @@ public function approvals()
 ";
 
 
-                // ✅ Send Email
+      // ✅ Send Email
                 $this->load->model('emails_model'); 
                 $this->emails_model->send_simple_email(
                     get_staff($insert['staffid'])->email, 
                     _l('Contract Assigned for Your Review & Signature'),
                     $message
                 );
+
+               $first_mail_sent=1; 
+
+}
+              
 
                 // ✅ Existing notification code continues...
                 $subject = '';
@@ -1199,8 +1207,10 @@ public function approvals()
                     $subject = $project->name;
                     $description = 'expense_approval';
                 }
-                
-                if(($data['rel_type'] == 'contract' || $data['rel_type'] == 'po') && get_option('contract_approval') == 'sequential') {
+
+                if($first_notification_sent==0){
+
+                    if(($data['rel_type'] == 'contract' || $data['rel_type'] == 'po') && get_option('contract_approval') == 'sequential') {
                     if($notify == 0) {
                         $notified = add_notification([
                             'description'     => $description,
@@ -1232,6 +1242,12 @@ public function approvals()
                         array_push($notifiedUsers, $approval_assigned[$key]);
                     } 
                 }
+
+                $first_notification_sent=1;
+
+                }
+                
+                
                 
                 $inserted = true;
                 pusher_trigger_notification($notifiedUsers);
