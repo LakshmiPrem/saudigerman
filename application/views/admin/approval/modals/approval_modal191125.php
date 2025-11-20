@@ -91,98 +91,43 @@
 							
 								<thead>
 									<tr>
-                    <th scope="col"><?php echo _l('approval_designation'); ?></th>
 										<th scope="col"><?php echo _l('approval_heading'); ?></th>
 										<th scope="col"><?php echo _l('approval_by'); ?></th>
 										<th></th>
 									</tr>
 								</thead>
 								<tbody>
-    <?php 
-    $i = 0;
-    $approval_stages_selected = [];
-    $approval_stages_selected = get_approvals($rel_id, $rel_name);
-    
-    // ✅ Check if we should auto-populate
-    $should_auto_populate = (sizeof($approval_stages_selected) == 0 && !empty($auto_approvers));
-    
-    if (sizeof($approval_stages_selected) > 0) { 
-        // EXISTING APPROVALS - Keep your existing code
-        foreach ($approval_stages_selected as $bs) { 
-            ?>
-            <?php if($bs['approval_status'] == 3) { $st1 = array('readonly' => 'readonly'); } else { $st1 = array(); } ?>
-            <tr id="bsrow<?=$i?>">
-                <input type="hidden" name="approval_row_id[]" value="<?php echo $bs['id']; ?>">
-                <td><?php echo render_select('approval_heading_id[]', $approval_headings, array('id','name'), '', $bs['approval_heading_id'], $st1); ?></td>
-                <td><?php echo render_select('approval_access[]', $approval_access, array('id','name'), '', $bs['approval_access'], $st1); ?></td>
-                <td><?php echo render_select('approval_assigned[]', $staffs, array('staffid', array('firstname','lastname')), '', $bs['staffid'], $st1, [], '', '', false); ?></td>
-                <?php if($bs['approval_status'] == 1 || $bs['approval_status'] == 2) { ?>                                             
-                <td width="10%" contenteditable="false">
-                    <button type="button" class="btn btn-danger btn-bs-delete DeleteBoxRow btn-sm"><i class="fa fa-remove"></i></button>
-                </td>
-                <?php } ?>
-            </tr>
-            <?php 
-            $i++;
-        } 
-    } else if ($should_auto_populate) { 
-        // ✅ AUTO-POPULATE BASED ON THRESHOLD
-        foreach ($auto_approvers as $approver) { 
-            ?>
-            <tr id="bsrow<?=$i?>">
-                <td><?php echo render_select('approval_heading_id[]', $approval_headings, array('id','name'), '', $approver['id'], [], [], '', '', false); ?></td>
-                <td><?php echo render_select('approval_access[]', $approval_access, array('id','name'), '', '', [], [], '', '', false); ?></td>
-                <td>
-                    <?php 
-                    // ✅ Build staff dropdown with only staff from this designation
-                    $designation_staff = [];
-                    if (!empty($approver['available_staff'])) {
-                        foreach ($approver['available_staff'] as $staff) {
-                            $designation_staff[] = [
-                                'staffid' => $staff['staffid'],
-                                'firstname' => $staff['firstname'],
-                                'lastname' => $staff['lastname']
-                            ];
-                        }
-                    }
-                    
-                    // If no staff found for this designation, use all staffs as fallback
-                    $staff_options = !empty($designation_staff) ? $designation_staff : $staffs;
-                    
-                    echo render_select(
-                        'approval_assigned[]', 
-                        $staff_options, 
-                        array('staffid', array('firstname','lastname')), 
-                        '', 
-                        $approver['staffid'], 
-                        [], 
-                        [], 
-                        '', 
-                        '', 
-                        false
-                    ); 
-                    ?>
-                </td>
-                <td contenteditable="false">
-                    <button type="button" class="btn btn-danger btn-bs-delete DeleteBoxRow btn-sm"><i class="fa fa-remove"></i></button>
-                </td>
-            </tr>
-            <?php 
-            $i++;
-        }
-    } else { 
-        // ✅ EMPTY ROW (fallback)
-        ?>
-        <tr id="bsrow<?=$i?>">
-            <td><?php echo render_select('approval_heading_id[]', $approval_headings, array('id','name'), '', '', [], [], '', '', false); ?></td>
-            <td><?php echo render_select('approval_access[]', $approval_access, array('id','name'), '', '', [], [], '', '', false); ?></td>
-            <td><?php echo render_select('approval_assigned[]', $staffs, array('staffid', array('firstname','lastname')), '', '', [], [], '', '', false); ?></td>
-            <td contenteditable="false">
-                <button type="button" class="btn btn-danger btn-bs-delete DeleteBoxRow btn-sm"><i class="fa fa-remove"></i></button>
-            </td>
-        </tr>
-    <?php } ?>
-</tbody>
+									 <?php 
+									$i=0;
+									$approval_stages_selected=[];
+									  $approval_stages_selected = get_approvals($rel_id,$rel_name);
+						if(sizeof($approval_stages_selected)>0){ 
+                          foreach ($approval_stages_selected as  $bs) { 
+                         ?> 
+                         <?php if($bs['approval_status']==3){$st1 = array('readonly' => 'readonly');  } else {$st1=array();}?>
+						<tr id="bsrow<?=$i?>">
+                            <input type="hidden" name="approval_row_id[]" value="<?php echo $bs['id']; ?>">
+							 <td><?php echo render_select('approval_heading_id[]',$approval_headings ,array('id','name'),'',$bs['approval_heading_id'],$st1);?></td>
+                           <td><?php echo render_select('approval_assigned[]',$staffs ,array('staffid',array('firstname','lastname')),'',$bs['staffid'],$st1,[],'','',false);?></td>
+                             <?php if($bs['approval_status']==1 || $bs['approval_status']==2)  {?>                                             
+                            <td width="10%" contenteditable="false">
+                            <button type="button" class="btn btn-danger btn-bs-delete DeleteBoxRow btn-sm"><i class="fa fa-remove"></i></button>
+                            </td>
+							 <?php } ?>
+                        </tr>
+                        <?php } ?>
+                    <?php }else{ 
+                         ?>
+                        <tr id="bsrow<?=$i?>">
+                            <td><?php echo render_select('approval_heading_id[]',$approval_headings ,array('id','name'),'','',[],[],'','',false);?></td>
+                           <td><?php echo render_select('approval_assigned[]',$staffs ,array('staffid',array('firstname','lastname')),'','',[],[],'','',false);?></td>
+                           
+                            <td  contenteditable="false">
+                                <button type="button" class="btn btn-danger btn-bs-delete DeleteBoxRow btn-sm"><i class="fa fa-remove"></i></button>
+                            </td>
+                        </tr>
+                  <?php } ?>
+								</tbody>
 								 <tfoot>
                         <tr>
                             <td colspan="3" align="center">
@@ -232,7 +177,6 @@ $(document).ready(function(){
   <?php endif; ?>
 
   var selectbox = '<?php echo render_select('approval_heading_id[]',$approval_headings,array('id','name'),'','',[],[],'','',false);?>';
-  var selectbox2 = '<?php echo render_select('approval_access[]',$approval_access,array('id','name'),'','',[],[],'','',false);?>';
  var selectbox1 = '<?php echo render_select('approval_assigned[]',$staffs,array('staffid',array('firstname','lastname')),'','',[],[],'','',false);?>';
   var actions           = '<button type="button" class="btn btn-danger btn-bs-delete DeleteBoxRow"><i class="fa fa-remove"></i></button>';
   var billing_stage_div = $("._approval_stages_table tbody td:first-child").html();
@@ -242,7 +186,6 @@ $(document).ready(function(){
         var index = $("._approval_stages_table tbody tr:last-child").index();
         var row   = '<tr id="bsrow'+index+1+'">' +
                         '<td>'+selectbox+'</td>' +
-                        '<td>'+selectbox2+'</td>' +
 						'<td>'+selectbox1+'</td>' +
                       	'<td>' + actions + '</td>' +    
                      '</tr>';

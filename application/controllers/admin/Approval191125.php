@@ -36,8 +36,7 @@ class Approval extends AdminController
 		$data['category']             = $this->tickets_model->get_service();
 		$data['reltypes']= get_approval_service();
         $data['title'] = _l('approval_heading');
-		$this->load->model('designations_model');
-        $data['designations']  = $this->designations_model->get();
+		
         $this->load->view('admin/approval/manage_approval_headings', $data);
 		
     }
@@ -1052,18 +1051,15 @@ public function approvals()
         
         $headings = $data['approval_heading_id'];
         $approval_assigned = $data['approval_assigned'];
-        $approval_access = $data['approval_access'];
         
         $inserted = false;
         $notifiedUsers = [];
         $notify = 0;
         $firstinsert = 0;
         
-        foreach($headings as $key => $heading) { 
+        foreach($headings as $key => $heading) {
             $insert['approval_heading_id'] = $heading;
             $insert['staffid'] = $approval_assigned[$key];
-            $insert['approval_access'] = $approval_access[$key];
-          
             
             if($approvecount > $count) {
                 // ✅ UPDATING EXISTING APPROVAL - Preserve existing status
@@ -1261,37 +1257,11 @@ public function approvals()
     $data['rel_name'] = $this->input->get('rel_name');
     $data['rel_id'] = $this->input->get('rel_id');
     $data['staffs'] = $this->staff_model->get('', $whereStaff);
-
-    // ✅ NEW: Get contract/PO value and determine threshold
-    $contract_value = 0;
-    $threshold_id = 1;
-    
-    if ($data['rel_name'] == 'contract' || $data['rel_name'] == 'po') {
-        $contract = $this->contracts_model->get($data['rel_id']);
-        if ($contract) {
-            $contract_value = floatval($contract->contract_value);
-            $threshold_id = $this->approval_model->determine_threshold($contract_value, $data['rel_name']);
-        }
-    }
-    
-    $data['contract_value'] = $contract_value;
-    $data['threshold_id'] = $threshold_id;
-
-
-    if($data['rel_name']=='contract'){
+    if($data['rel_name']=='po'){
         $data['approval_headings'] = $this->approval_model->get('', ['rel_type' => 'contract']);
     }else{
         $data['approval_headings'] = $this->approval_model->get('', ['rel_type' => $data['rel_name']]);
     }
-
-
-    // ✅ NEW: Get auto-populated approvers based on threshold
-    $data['auto_approvers'] = $this->approval_model->get_approval_headings_by_threshold(
-        $data['rel_name'], 
-        $threshold_id
-    );
-
-
     $data['approval_access']=get_approval_access();
     
     $data['statuses'] = $this->tickets_model->get_ticket_status();
