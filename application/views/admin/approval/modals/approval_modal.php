@@ -91,8 +91,8 @@
 							
 								<thead>
 									<tr>
-                    <th scope="col"><?php echo _l('approval_designation'); ?></th>
-										<th scope="col"><?php echo _l('approval_heading'); ?></th>
+                    <th scope="col"><?php echo _l('approval_heading'); ?></th>
+										<th scope="col"><?php echo _l('approval_type'); ?></th>
 										<th scope="col"><?php echo _l('approval_by'); ?></th>
 										<th></th>
 									</tr>

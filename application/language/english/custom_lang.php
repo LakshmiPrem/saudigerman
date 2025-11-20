@@ -3350,6 +3350,6 @@ $lang['po_summary_inprogress']     ='In Progress';
 $lang['po_summary_signed']     ='Signed';
 
 $lang['approval_designation']     ='Designation';
-
+$lang['approval_type']     ='Approval Access';
 
 
