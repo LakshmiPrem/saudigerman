@@ -1062,6 +1062,7 @@ public function approvals()
         foreach($headings as $key => $heading) { 
             $insert['approval_heading_id'] = $heading;
             $insert['staffid'] = $approval_assigned[$key];
+        
             $insert['approval_type'] = $approval_type[$key];
           
             
