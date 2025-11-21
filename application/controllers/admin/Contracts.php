@@ -3688,7 +3688,10 @@ public function save_stamp()
     $this->db->where('id', $contract_id);
     $this->db->update(db_prefix() . 'contracts', [
         'content' => $contentfile,
+        'stamped_at' => date('Y-m-d H:i:s'),
+        'stamp_status'=> 1,
     ]);
+    
     
     $current_version = get_current_contract_version($contract_id);
     // Already version exists
@@ -3704,6 +3707,7 @@ public function save_stamp()
     $version_data['dateadded'] = date('Y-m-d H:i:s');
     $version_data['addedby'] = get_staff_user_id();
     $this->db->insert('tblcontract_versions', $version_data);
+    
 
     // ✅ Optional: Log stamp application
     // $this->db->insert('tblcontract_stamp_log', [
