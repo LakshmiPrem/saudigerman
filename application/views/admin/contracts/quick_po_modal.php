@@ -180,7 +180,7 @@ function new_quick_po(clientid='',company=''){
   });
 
 
-	if(clientid!=''){ alert(clientid);
+	if(clientid!=''){ 
 	 var ctype = $('#quick_po-form select[name="client"]');
                // ctype.find('option:first').after('<option value="'+clientid+'">'+company+'</option>');
    	$('#divclientcontract').addClass('hide');
