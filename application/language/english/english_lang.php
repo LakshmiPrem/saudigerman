@@ -4759,7 +4759,7 @@ $lang['item_as_expense']                                  = '[Expense]';
 
 $lang['show_help_on_setup_menu']                          = 'Show help menu item on setup menu';
 
-$lang['customers_summary_total']                          = 'Total Divisions / Entity';
+$lang['customers_summary_total']                          = 'Total Branches';
 
 $lang['filter_by']                                        = 'Filter by';
 
@@ -5617,9 +5617,9 @@ $lang['mark_as_active']                          = 'Mark as active';
 
 $lang['customer_inactive_message']               = 'This is inactive customer profile and some features may be disabled';
 
-$lang['active_customers']                        = 'Active Divisions / Entity';
+$lang['active_customers']                        = 'Active Branches';
 
-$lang['inactive_active_customers']               = 'Inactive Divisions / Entity';
+$lang['inactive_active_customers']               = 'Inactive Branches';
 
 $lang['include_proposal_items_merge_field_help'] = 'Include proposal items with merge field anywhere in proposal content as %s';
 
