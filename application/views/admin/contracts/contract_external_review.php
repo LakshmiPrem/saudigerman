@@ -42,7 +42,7 @@
             // --- Check if the logged-in user is an approver for this contract ---
             $this->db->where('rel_id', $contract->id);
             $this->db->where('staffid', get_staff_user_id());
-            $this->db->where('approval_heading_id', 11);
+            $this->db->where('approval_heading_id', 'read_by');
             $approver_exists = $this->db->get('tblapprovals')->row();
 
             if ($approver_exists && $approver_exists->approval_status != 7) { ?>
