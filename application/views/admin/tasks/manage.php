@@ -55,10 +55,10 @@
                            <option value="contract" ><?php echo _l('contract'); ?></option>
                            <option value="ticket"> <?php echo _l('ticket'); ?> </option>
                           
-                            <option value="trade_license"> <?php echo _l('trade_licenses'); ?></option>
+                          <!--  <option value="trade_license"> <?php echo _l('trade_licenses'); ?></option>
                             <option value="legalrisk"> <?php echo _l('legalrisk'); ?></option>
                            <option value="document"><?php echo _l('safe_register'); ?></option>
-                            <option value="chequebounce"><?php echo _l('chequebounce'); ?></option>
+                            <option value="chequebounce"><?php echo _l('chequebounce'); ?></option>-->
                          
                         </select>
                      </div>
