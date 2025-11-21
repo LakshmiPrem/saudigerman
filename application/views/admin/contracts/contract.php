@@ -131,6 +131,7 @@ $user_id = get_staff_user_id();
 $can_sign = false;
 $can_stamp = false;
 $is_current_signer = false;
+$has_rejection = false; // Track if any previous approver rejected
 
 // Sort approvers by their order
 $sorted_approvals = $contract_approvals;
@@ -148,6 +149,13 @@ foreach ($sorted_approvals as $index => $approval) {
         $user_position = $index;
     }
     
+    // Check for rejection before user's position
+    if ($user_position === -1 || $index < $user_position) {
+        if ($status === 'rejected') {
+            $has_rejection = true;
+        }
+    }
+    
     // Find the first unsigned/unreviewed position
     if ($current_position == -1 && !in_array($status, ['signed', 'reviewed', 'rejected'])) {
         $current_position = $index;
@@ -155,7 +163,7 @@ foreach ($sorted_approvals as $index => $approval) {
 }
 
 // Check if user can sign based on their position
-if ($user_position !== -1 && $user_position == $current_position) {
+if ($user_position !== -1 && $user_position == $current_position && !$has_rejection) {
     $approval = $sorted_approvals[$user_position];
     $placeholder = isset($approval['sign_placeholder']) ? trim($approval['sign_placeholder']) : '';
     $status = isset($approval['status']) ? strtolower($approval['status']) : '';
@@ -171,8 +179,8 @@ if ($user_position !== -1 && $user_position == $current_position) {
     }
 }
 
-// Check if user can apply stamp
-if (is_stamper($user_id)) {
+// Check if user can apply stamp (don't allow if any rejection exists)
+if (is_stamper($user_id) && !$has_rejection) {
     $can_stamp = true;
 }
 
@@ -187,6 +195,7 @@ $has_stamp_placeholder = !empty($stamp_placeholder) && $stamp_placeholder !== '[
         <i class="fa fa-pencil"></i> Sign Now
     </button>
 <?php elseif (
+    !$has_rejection &&
     isset($user_position) 
     && $user_position !== -1 
     && isset($current_position) 
@@ -201,7 +210,7 @@ $has_stamp_placeholder = !empty($stamp_placeholder) && $stamp_placeholder !== '[
 
 
 <!-- Stamp Button -->
-<?php if ($can_stamp && $has_stamp_placeholder): ?>
+<?php if ($can_stamp && $has_stamp_placeholder && $contract->stamp_status==0): ?>
     <button class="btn btn-success pull-right" style="margin-right: 15px;" data-toggle="modal" data-target="#stampModal">
         <i class="fa fa-certificate"></i> Apply Stamp
     </button>
