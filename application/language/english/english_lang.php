@@ -128,9 +128,9 @@ $lang['clients']                                 = 'Branch';
 
 $lang['client']                                  = 'Branch';
 
-$lang['new_client']                              = 'New Division  / Entity';
+$lang['new_client']                              = 'New Branch';
 
-$lang['client_lowercase']                        = 'division  / entity';
+$lang['client_lowercase']                        = 'Branch';
 
 $lang['client_firstname']                        = 'First Name';
 
@@ -138,7 +138,7 @@ $lang['client_lastname']                         = 'Last Name';
 
 $lang['client_email']                            = 'Email';
 
-$lang['client_company']                          = 'Entity / Division';
+$lang['client_company']                          = 'Branch';
 
 $lang['client_vat_number']                       = 'VAT Number';
 
@@ -426,7 +426,7 @@ $lang['invoice_details']                         = 'Invoice Details';
 
 $lang['invoice_view']                            = 'View Invoice';
 
-$lang['invoice_select_customer']                 = 'Division / Entity';
+$lang['invoice_select_customer']                 = 'Branch';
 
 $lang['invoice_add_edit_number']                 = 'Invoice Number';
 
@@ -466,7 +466,7 @@ $lang['invoice_dt_table_heading_number']         = 'Invoice #';
 
 $lang['invoice_dt_table_heading_date']           = 'Date';
 
-$lang['invoice_dt_table_heading_client']         = 'Division / Entity';
+$lang['invoice_dt_table_heading_client']         = 'Branch';
 
 $lang['invoice_dt_table_heading_duedate']        = 'Due Date';
 
@@ -508,7 +508,7 @@ $lang['payments_table_date_heading']          = 'Date';
 
 $lang['payments_table_amount_heading']        = 'Amount';
 
-$lang['payments_table_client_heading']        = 'Division / Entity';
+$lang['payments_table_client_heading']        = 'Branch';
 
 $lang['payment_not_exists']                   = 'The payment does not exists';
 
@@ -664,7 +664,7 @@ $lang['report_sales_months_twelve_months']                = 'Last 12 months';
 
 $lang['reports_sales_generated_report']                   = 'Generated Report';
 
-$lang['reports_sales_dt_customers_client']                = 'Division / Entity';
+$lang['reports_sales_dt_customers_client']                = 'Branch';
 
 $lang['reports_sales_dt_customers_total_invoices']        = 'Total Invoices';
 
@@ -1172,7 +1172,7 @@ $lang['ticket_status_changed_fail']                          = 'Problem Changing
 
 $lang['ticket_staff_string']                                 = 'Staff';
 
-$lang['ticket_client_string']                                = 'Division / Entity';
+$lang['ticket_client_string']                                = 'Branch';
 
 $lang['ticket_posted']                                       = 'Posted: %s';
 
@@ -2080,7 +2080,7 @@ $lang['estimate_sent_to_client_fail']             = 'Problem while sending the e
 
 $lang['estimate_view']                            = 'View estimate';
 
-$lang['estimate_select_customer']                 = 'Division / Entity';
+$lang['estimate_select_customer']                 = 'Branch';
 
 $lang['estimate_add_edit_number']                 = 'Estimate Number';
 
@@ -2124,7 +2124,7 @@ $lang['estimate_dt_table_heading_number']         = 'Estimate #';
 
 $lang['estimate_dt_table_heading_date']           = 'Date';
 
-$lang['estimate_dt_table_heading_client']         = 'Division / Entity';
+$lang['estimate_dt_table_heading_client']         = 'Branch';
 
 $lang['estimate_dt_table_heading_expirydate']     = 'Expiry Date';
 
@@ -2302,7 +2302,7 @@ $lang['clients_list_phone']                = 'Phone';
 
 $lang['client_expenses_tab']               = 'Expenses';
 
-$lang['customers_summary']                 = 'Divisions / Entity Summary';
+$lang['customers_summary']                 = 'Branch Summary';
 
 $lang['customers_summary_active']          = 'Active Contacts';
 
@@ -2524,7 +2524,7 @@ $lang['expenses']                                     = 'Expenses';
 
 $lang['expense_lowercase']                            = 'expense';
 
-$lang['expense_add_edit_customer']                    = 'Division';
+$lang['expense_add_edit_customer']                    = 'Branch';
 
 $lang['expense_add_edit_note']                        = 'Note';
 
@@ -2550,7 +2550,7 @@ $lang['expense_dt_table_heading_date']                = 'Date';
 
 $lang['expense_dt_table_heading_reference_no']        = 'Reference #';
 
-$lang['expense_dt_table_heading_customer']            = 'Division';
+$lang['expense_dt_table_heading_customer']            = 'Branch';
 
 $lang['expense_dt_table_heading_payment_mode']        = 'Payment Mode';
 
@@ -2590,7 +2590,7 @@ $lang['expense_billed']                               = 'Billed';
 
 $lang['expense_not_billed']                           = 'Invoice Not Paid';
 
-$lang['expense_customer']                             = 'Division / Entity';
+$lang['expense_customer']                             = 'Branch';
 
 $lang['expense_note']                                 = 'Note:';
 
