@@ -895,6 +895,30 @@ public function add_contractpdf($id=''){
         }
 		}else if($extension=='docx'){
 				$phpWord = \PhpOffice\PhpWord\IOFactory::createReader('Word2007')->load($userfile);
+			// Load DOCX for extracting text
+ //   $phpWord = \PhpOffice\PhpWord\IOFactory::load($userfile);
+       /*          $output_dir = get_upload_path_by_type('contract') . $contract_id . '/';
+
+
+    // Convert DOCX → PDF using LibreOffice
+    $soffice = '"C:\Program Files\LibreOffice\program\soffice.exe"';
+
+   
+
+    $cmd = $soffice . ' --headless --convert-to pdf --outdir '
+            . escapeshellarg($output_dir) . ' '
+            . escapeshellarg($userfile);
+
+    exec($cmd, $output, $result);
+
+    // Check success
+    $pdfFilename = pathinfo($userfile1, PATHINFO_FILENAME) . ".pdf";
+    $pdfPath = $output_dir . $pdfFilename;
+
+    if (!file_exists($pdfPath)) {
+        echo "PDF conversion failed.";
+       // exit;
+    }*/
 					  foreach($phpWord->getSections() as $section) {
         foreach($section->getElements() as $element) {
             if (method_exists($element, 'getElements')) {
