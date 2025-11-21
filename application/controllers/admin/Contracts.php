@@ -1316,6 +1316,7 @@ $templateProcessor->setImageValue('Signature', function () {
                     access_denied('contracts');
                 }
                 $data = $this->input->post();
+                
 					$data['project_id']=$this->input->post('projectid');
 					unset($data['projectid']);
                
@@ -1363,7 +1364,7 @@ $templateProcessor->setImageValue('Signature', function () {
                     }
                     
                         $success = true;
-                        $message = _l('added_successfully', _l('contract'));
+                        $message = _l('added_successfully', _l($data['type']));
                     }
                     echo json_encode([
                         'success' => $success,
@@ -3133,6 +3134,10 @@ if ($inc_time_stamp && !empty($timestamp)) {
         'signed_at' => date('Y-m-d H:i:s')
     ]);
 
+
+    log_activity('Contract Signed By [StaffId: ' . get_staff_user_id() . ', ContractID: ' . $contract_id . ']');
+	$this->contracts_model->log_contract_activity($contract_id, 'Contract Signed By: '.get_staff_full_name(get_staff_user_id()));
+
       // Find and notify next approver
 $next_approver = null;
 $found_current = false;
@@ -3190,7 +3195,7 @@ if ($next_approver) {
           if($notify == 0) {
                         $notified = add_notification([
                             'description'     => $description,
-                            'touserid'        => $next_staff->email,
+                            'touserid'        => $next_approver['staffid'],
                             'fromcompany'     => 1,
                             'fromuserid'      => get_staff_user_id(),
                             'link'            => $contract_link,
@@ -3199,7 +3204,7 @@ if ($next_approver) {
                             ]),
                         ]);
                         if ($notified) {
-                            array_push($notifiedUsers, $next_staff->email);
+                            array_push($notifiedUsers, $next_approver['staffid']);
                         }
                         $notify++;
                     }
@@ -3810,7 +3815,7 @@ if ($next_approver) {
         if($notify == 0) {
                         $notified = add_notification([
                             'description'     => $description,
-                            'touserid'        => $next_staff->email,
+                            'touserid'        => $next_approver['staffid'],
                             'fromcompany'     => 1,
                             'fromuserid'      => get_staff_user_id(),
                             'link'            => $contract_link,
@@ -3819,7 +3824,7 @@ if ($next_approver) {
                             ]),
                         ]);
                         if ($notified) {
-                            array_push($notifiedUsers, $next_staff->email);
+                            array_push($notifiedUsers, $next_approver['staffid']);
                         }
                         $notify++;
                     }

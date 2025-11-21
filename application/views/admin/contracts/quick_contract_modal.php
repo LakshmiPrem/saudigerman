@@ -3,6 +3,7 @@
     <div class="modal-dialog">
         <?php echo form_open_multipart(admin_url('contracts/add_quick_contract'), array('id'=>'quick_contract-form')); ?>
         <div class="modal-content">
+          <input type="hidden" name="type" value="contracts">
             <div class="modal-header">
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
                 <h4 class="modal-title">
