@@ -270,7 +270,25 @@ if (is_admin() || $is_contract_creator) {
 }
 
 // Check if user is signed_by only (not admin or creator)
-$is_signed_by_only = (!is_admin() && !$is_contract_creator && $user_approval_type == 'signed_by');
+$is_signed_by_only = (!is_admin() && !$is_contract_creator && $user_approval_type == 'signed_by');?>
+ <?php if ($show_tabs &&$show_approvals_comments) { ?>
+    <li role="presentation" class="<?php if($this->input->get('tab') == 'approvals'){echo 'active';} ?>">
+        <a href="#approvals" aria-controls="approvals" role="tab" data-toggle="tab">
+            <?php echo _l('approvals'); ?>
+        </a>
+    </li>
+    <li role="presentation">
+        <a href="#tab_comments" aria-controls="tab_comments" class="<?php if($this->input->get('tab') == 'comments'){echo 'active';} ?>" role="tab" data-toggle="tab" onclick="get_contract_comments(); return false;">
+            <?php echo _l('contract_comments'); ?>
+            <?php
+            $totalComments = total_rows(db_prefix().'contract_comments','contract_id='.$contract->id)
+            ?>
+            <span class="badge comments-indicator<?php echo $totalComments == 0 ? ' hide' : ''; ?>"><?php echo $totalComments; ?></span>
+        </a>
+    </li>
+    <?php } ?>
+
+<?php
 
 if ($show_tabs && !$is_signed_by_only) { ?>
 
@@ -280,13 +298,7 @@ if ($show_tabs && !$is_signed_by_only) { ?>
         </a>
     </li>
 
-    <?php if ($show_approvals_comments) { ?>
-    <li role="presentation" class="<?php if($this->input->get('tab') == 'approvals'){echo 'active';} ?>">
-        <a href="#approvals" aria-controls="approvals" role="tab" data-toggle="tab">
-            <?php echo _l('approvals'); ?>
-        </a>
-    </li>
-    <?php } ?>
+   
     
     <?php if($contract->type=='contracts') { ?>
     <li role="presentation" class="<?php if($this->input->get('tab') == 'tab_version'){echo 'active';} ?>">
@@ -336,17 +348,7 @@ if ($show_tabs && !$is_signed_by_only) { ?>
     </li>
     <?php } ?>
     
-    <?php if ($show_approvals_comments) { ?>
-    <li role="presentation">
-        <a href="#tab_comments" aria-controls="tab_comments" class="<?php if($this->input->get('tab') == 'comments'){echo 'active';} ?>" role="tab" data-toggle="tab" onclick="get_contract_comments(); return false;">
-            <?php echo _l('contract_comments'); ?>
-            <?php
-            $totalComments = total_rows(db_prefix().'contract_comments','contract_id='.$contract->id)
-            ?>
-            <span class="badge comments-indicator<?php echo $totalComments == 0 ? ' hide' : ''; ?>"><?php echo $totalComments; ?></span>
-        </a>
-    </li>
-    <?php } ?>
+   
     
 <?php if($contract->type=='contracts') { ?>
     <li role="presentation" class="<?php if($this->input->get('tab') == 'risklist'){echo 'active';} ?>">
