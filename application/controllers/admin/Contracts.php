@@ -3194,6 +3194,7 @@ if ($next_approver) {
         );
 
           $notify=0;
+          $notifiedUsers=[];
           $description=$clientType.'_approval';
           if($notify == 0) {
                         $notified = add_notification([
@@ -3209,7 +3210,9 @@ if ($next_approver) {
                         if ($notified) {
                             array_push($notifiedUsers, $next_approver['staffid']);
                         }
+                        pusher_trigger_notification($notifiedUsers);
                         $notify++;
+                        
                     }
     }
 }
@@ -3818,6 +3821,7 @@ if ($next_approver) {
 
         $description = $type.'_approval';
         $notify = 0;
+        $notifiedUsers=[];
         if($notify == 0) {
                         $notified = add_notification([
                             'description'     => $description,
@@ -3832,6 +3836,7 @@ if ($next_approver) {
                         if ($notified) {
                             array_push($notifiedUsers, $next_approver['staffid']);
                         }
+                        pusher_trigger_notification($notifiedUsers);
                         $notify++;
                     }
     }
