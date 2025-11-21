@@ -3131,7 +3131,8 @@ if ($inc_time_stamp && !empty($timestamp)) {
         'signature_path' => $filePath,
         'status' => 'signed',
         'approval_status' => '3',
-        'signed_at' => date('Y-m-d H:i:s')
+        'signed_at' => date('Y-m-d H:i:s'),
+        'dateapproved' => date('Y-m-d H:i:s')
     ]);
 
 
@@ -3162,9 +3163,11 @@ if ($next_approver) {
         
         if ($is_external_review) {
             $contract_link = admin_url('contracts/contract_external_review/' . $contract_id);
+            $not_link = 'contracts/contract_external_review/' . $contract_id;
             $email_subject = _l('Contract Ready for Your Review');
         } else {
             $contract_link = admin_url('contracts/contract/' . $contract_id);
+            $not_link = 'contracts/contract/' . $contract_id;
             $email_subject = _l('Contract Ready for Your Signature');
         }
         
@@ -3198,7 +3201,7 @@ if ($next_approver) {
                             'touserid'        => $next_approver['staffid'],
                             'fromcompany'     => 1,
                             'fromuserid'      => get_staff_user_id(),
-                            'link'            => $contract_link,
+                            'link'            => $not_link,
                             'additional_data' => serialize([
                                 $contract->subject,
                             ]),
@@ -3742,7 +3745,8 @@ public function review_pdf($id,$type)
     $this->db->update('tblapprovals', [
         'approval_status' => 7,
         'status' => 'reviewed',
-        'signed_at' => date('Y-m-d H:i:s')
+        'signed_at' => date('Y-m-d H:i:s'),
+        'dateapproved' => date('Y-m-d H:i:s')
     ]);
      $contract = $this->db->where('id', $id)->get('tblcontracts')->row();
     $all_approvers = $this->db->where([
@@ -3772,6 +3776,7 @@ if ($next_approver) {
          $is_external_review = isset($next_approver['approval_type']) && $next_approver['approval_type'] == 'read_by';
         if ($is_external_review) {
             $contract_link = admin_url('contracts/contract_external_review/' . $id);
+            $not_link = 'contracts/contract_external_review/' . $id;
             if($type=='contract'){
                 $email_subject = _l('Contract Ready for Your Review');
             }else{
@@ -3780,6 +3785,7 @@ if ($next_approver) {
             
         } else {
             $contract_link = admin_url('contracts/contract/' . $id);
+            $not_link = 'contracts/contract/' . $id;
             if($type=='contract'){
                 $email_subject = _l('Contract Ready for Your Signature');
             }else{
@@ -3818,7 +3824,7 @@ if ($next_approver) {
                             'touserid'        => $next_approver['staffid'],
                             'fromcompany'     => 1,
                             'fromuserid'      => get_staff_user_id(),
-                            'link'            => $contract_link,
+                            'link'            =>$not_link,
                             'additional_data' => serialize([
                                 $contract->subject,
                             ]),

@@ -1527,8 +1527,8 @@ public function approvals()
                             }
                             
                             $approved_date_span ='';
-                            if($approval['dateapproved'] != ''){
-                                $approved_date_span = '<span class="badge badge-dark">Updated Date :'.$approval['dateapproved'].'</span>';
+                            if($approval['signed_at'] != ''){
+                                $approved_date_span = '<span class="badge badge-dark">Updated Date :'.$approval['signed_at'].'</span>';
                             }
                             
                             $tbody .= '<tr>';
@@ -1551,7 +1551,7 @@ public function approvals()
                             // REMARKS COLUMN - Sequential
                             if($type=='overview'){ 
                                 if($approval['approval_status']==3){
-                                    $remarks = '<b>Approved Date:</b> ' . $approval['dateapproved'];
+                                    $remarks = '<b>Signed Date:</b> ' . $approval['signed_at'];
                                     $remarks .= '<br>' . nl2br($approval['approval_remarks']);
                                 } else {
                                     $remarks = '<b>Due Date:</b> ' . $approval['approvaldue_date'];
@@ -1585,8 +1585,8 @@ public function approvals()
                     }
                     
                     $approved_date_span = '';
-                    if ($approval['dateapproved'] != '') {
-                        $approved_date_span = '<span class="badge badge-dark">Updated Date : ' . $approval['dateapproved'] . '</span>';
+                    if ($approval['signed_at'] != '') {
+                        $approved_date_span = '<span class="badge badge-dark">Updated Date : ' . $approval['signed_at'] . '</span>';
                     }
                     
                     $tbody .= '<tr>';
@@ -1616,7 +1616,7 @@ public function approvals()
                     // REMARKS COLUMN - Parallel
                     if ($type == 'overview') { 
                         if ($approval['approval_status'] == 3) {  
-                            $remarks = '<b>Approved Date:</b> ' . $approval['dateapproved'];
+                            $remarks = '<b>Signed Date:</b> ' . $approval['signed_at'];
                         } else if($approval['approval_status'] == 5){
                             $remarks = '<b>Rejected Date:</b> ' . $approval['rejected_date'];
                         }else {
@@ -1677,6 +1677,8 @@ public function approvals()
       $approval_id =$this->input->post('id');
       $update['approval_status'] =$this->input->post('status_id');
       $update['dateapproved'] = date('Y-m-d H:i:s');
+      $update['signed_at'] = date('Y-m-d H:i:s');
+      
 	$success = $this->approval_model->updateapproval($update, $approval_id);
       $approval_row = $this->db->get_where('tblapprovals',array('id'=>$approval_id))->row();//$a_model->find($approval_id);
       $relid=$approval_row->rel_id;
