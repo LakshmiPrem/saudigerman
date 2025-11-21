@@ -1181,6 +1181,15 @@ if (!empty($contract_approvals)) {
     
 <div id="approvers">
     <h4>Approvers</h4>
+    
+    <!-- Important instruction message -->
+    <div class="alert alert-warning alert-dismissible" style="margin-bottom: 15px;">
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+        </button>
+        <i class="fa fa-exclamation-triangle"></i> <strong>Important:</strong> Page numbers are mandatory. If you don't specify page numbers, the placeholder will appear on <strong>every page</strong> of the document.
+    </div>
+    
     <!--14112025 start-->
     <!-- Dropdown to select approver -->
     <div class="form-group">
@@ -1218,10 +1227,13 @@ if (!empty($contract_approvals)) {
             style="padding: 15px; background-color: #f0f8ff; border: 2px solid #007bff; border-radius: 5px; margin-bottom: 10px; cursor: move;">
             <strong id="approver-name-display"><?= $first_approver ? get_staff_full_name($first_approver['staffid']) : '' ?></strong><br>
             <input type="text" class="page-input form-control" 
-                placeholder="Pages (e.g. 1,2,3)" 
+                placeholder="Pages (e.g. 1,2,3) - Required!" 
                 id="current-page-input"
                 data-approver-id="<?= $first_approver ? $first_approver['staffid'] : '' ?>"
                 style="margin-top: 8px;">
+            <small class="text-muted" style="display: block; margin-top: 5px;">
+                <i class="fa fa-info-circle"></i> Enter page numbers (e.g., 1,2,3 or leave empty for all pages)
+            </small>
             <button class="btn btn-xs btn-danger clear-approver" 
                     id="current-clear-btn"
                     data-approver-id="<?= $first_approver ? $first_approver['staffid'] : '' ?>" 
@@ -1249,14 +1261,28 @@ if (!empty($contract_approvals)) {
 <!-- Stamp Section -->
 <div id="stamp-section" style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #ccc;">
     <h4>Company Stamp</h4>
+    
+    <!-- Important instruction message for stamp -->
+    <div class="alert alert-info alert-dismissible" style="margin-bottom: 15px;">
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+        </button>
+        <i class="fa fa-info-circle"></i> <strong>Note:</strong> Specify page numbers to control where the stamp appears. Leave empty to apply on all pages.
+    </div>
+    
     <div class="approver" draggable="true"
         data-id="company_stamp"
         data-name="Company Stamp"
-        data-type="stamp">
-        Company Stamp<br>
+        data-type="stamp"
+        style="padding: 15px; background-color: #fff8e1; border: 2px solid #ff9800; border-radius: 5px;">
+        <strong>Company Stamp</strong><br>
         <input type="text" class="page-input form-control" 
-            placeholder="Pages (e.g. 1,2,3)" 
-            data-approver-id="company_stamp">
+            placeholder="Pages (e.g. 1,2,3) - Required!" 
+            data-approver-id="company_stamp"
+            style="margin-top: 8px;">
+        <small class="text-muted" style="display: block; margin-top: 5px;">
+            <i class="fa fa-info-circle"></i> Enter page numbers (e.g., 1,2,3 or leave empty for all pages)
+        </small>
         <button class="btn btn-xs btn-danger clear-approver" 
                 data-approver-id="company_stamp" 
                 style="margin-top:5px;">Clear Stamp</button>
