@@ -6960,7 +6960,11 @@ if (!is_admin()) {
                 $row[] = $aRow['approval_name'];
                 $row[] =_d($aRow['approvaldue_date']);
               // $row[] = _l($aRow['approval_status']);
-               $row[]='<a class="btn btn-success" style="border-radius: 12px;" href="' . admin_url('contracts/contract/' . $aRow['contractid']) . '?tab=tab_contract">' . _l('sign_now'). '</a>';
+                $btn='btn-warning';
+                if($aRow['approvaldue_date']>date('Y-m-d')){
+                    $btn='btn-success';
+                }
+               $row[]='<a class="btn '.$btn.'" style="border-radius: 12px;" href="' . admin_url('contracts/contract/' . $aRow['contractid']) . '?tab=tab_contract">' . _l('sign_now'). '</a>';
                 $output['aaData'][] = $row;
            }
 				 }else{
@@ -6977,9 +6981,13 @@ if (!is_admin()) {
                 $row[] = get_staff_full_name($aRow['addedfrom']);
                 $row[] = _d($aRow['dateadded']);
                 $row[] = $aRow['approval_name'];
-                 $row[] = _d($aRow['dateadded']);
+                 $row[] =_d($aRow['approvaldue_date']);
               // $row[] = _l($aRow['approval_status']);
-               $row[]='<a class="btn btn-success" style="border-radius: 12px;" href="' . admin_url('contracts/contract/' . $aRow['contractid']) . '?tab=tab_contract">' . _l('sign_now'). '</a>';
+               $btn='btn-warning';
+                if($aRow['approvaldue_date']>date('Y-m-d')){
+                    $btn='btn-success';
+                }
+               $row[]='<a class="btn '.$btn.'" style="border-radius: 12px;" href="' . admin_url('contracts/contract/' . $aRow['contractid']) . '?tab=tab_contract">' . _l('sign_now'). '</a>';
                 $output['aaData'][] = $row;
 				 
 				 }
