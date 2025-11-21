@@ -1174,7 +1174,7 @@ if (!empty($contract_approvals)) {
     }
 }
 ?>
-<div class="col-md-4 <?php if (!$allowed_by_addedfrom && !is_stamper(get_staff_user_id()) && !$show_rejection_section) { echo "hide"; }?>">
+<div class="col-md-4 <?php if (!$allowed_by_addedfrom && !is_stamper(get_staff_user_id()) && !$show_rejection_section && $contract->marked_as_signed==1) { echo "hide"; }?>">
 <?php if ($allowed_by_addedfrom ||is_stamper(get_staff_user_id())) { ?>
   <h3>Apply Placeholders</h3>
   <?php if ($allowed_by_addedfrom ) { ?>
