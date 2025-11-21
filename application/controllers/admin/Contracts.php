@@ -3199,7 +3199,7 @@ if ($next_approver) {
                             ]),
                         ]);
                         if ($notified) {
-                            array_push($notifiedUsers, $approval_assigned[$key]);
+                            array_push($notifiedUsers, $next_staff->email);
                         }
                         $notify++;
                     }
@@ -3819,7 +3819,7 @@ if ($next_approver) {
                             ]),
                         ]);
                         if ($notified) {
-                            array_push($notifiedUsers, $approval_assigned[$key]);
+                            array_push($notifiedUsers, $next_staff->email);
                         }
                         $notify++;
                     }
