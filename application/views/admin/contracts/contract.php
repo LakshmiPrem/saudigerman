@@ -216,7 +216,7 @@ $has_stamp_placeholder = !empty($stamp_placeholder) && $stamp_placeholder !== '[
             <?php if($contract->trash > 0){
                echo '<div class="ribbon default"><span>'._l('contract_trash').'</span></div>';
             } ?>
-            <div class="horizontal-scrollable-tabs preview-tabs-top">
+        <div class="horizontal-scrollable-tabs preview-tabs-top">
                <div class="scroller arrow-left"><i class="fa fa-angle-left"></i></div>
                <div class="scroller arrow-right"><i class="fa fa-angle-right"></i></div>
                <div class="horizontal-tabs">
@@ -233,9 +233,11 @@ $has_stamp_placeholder = !empty($stamp_placeholder) && $stamp_placeholder !== '[
                      </li> 
                        <?php 
 $show_tabs = false;
+$user_approval_type = '';
+$is_contract_creator = ($contract->addedfrom == get_staff_user_id());
 
-if (is_admin()) {
-    // Admin can see all tabs without any conditions
+if (is_admin() || $is_contract_creator) {
+    // Admin and contract creator can see all tabs without any conditions
     $show_tabs = true;
 } else {
     // Non-admin users need to meet the conditions
@@ -243,17 +245,34 @@ if (is_admin()) {
         $approval_heading_id = isset($approvals['approval_type']) ? $approvals['approval_type'] : '';
 
         if (
-            $approval_heading_id != 'read_by' &&
             isset($approvals['staffid']) &&
             (int)$approvals['staffid'] == (int)get_staff_user_id()
         ) {
-            $show_tabs = true;
+            $user_approval_type = $approval_heading_id;
+            
+            // Only show tabs if approval_heading_id is NOT 'read_by'
+            if ($approval_heading_id != 'read_by') {
+                $show_tabs = true;
+            }
             break;
         }
     }
 }
 
-if ($show_tabs) { ?>
+// Determine if user can see approvals and comments tabs
+$show_approvals_comments = false;
+if (is_admin() || $is_contract_creator) {
+    // Admin and contract creator can see all tabs
+    $show_approvals_comments = true;
+} elseif ($user_approval_type == 'signed_by') {
+    // signed_by users can see approvals and comments
+    $show_approvals_comments = true;
+}
+
+// Check if user is signed_by only (not admin or creator)
+$is_signed_by_only = (!is_admin() && !$is_contract_creator && $user_approval_type == 'signed_by');
+
+if ($show_tabs && !$is_signed_by_only) { ?>
 
     <li role="presentation" class="<?php if( $this->input->get('tab') == 'tab_content'){echo 'active';} ?>">
         <a href="#tab_content" aria-controls="tab_content" role="tab" data-toggle="tab">
@@ -261,11 +280,14 @@ if ($show_tabs) { ?>
         </a>
     </li>
 
+    <?php if ($show_approvals_comments) { ?>
     <li role="presentation" class="<?php if($this->input->get('tab') == 'approvals'){echo 'active';} ?>">
         <a href="#approvals" aria-controls="approvals" role="tab" data-toggle="tab">
             <?php echo _l('approvals'); ?>
         </a>
     </li>
+    <?php } ?>
+    
     <?php if($contract->type=='contracts') { ?>
     <li role="presentation" class="<?php if($this->input->get('tab') == 'tab_version'){echo 'active';} ?>">
         <a href="#tab_version" aria-controls="tab_version" role="tab" data-toggle="tab">
@@ -313,6 +335,8 @@ if ($show_tabs) { ?>
         </a>
     </li>
     <?php } ?>
+    
+    <?php if ($show_approvals_comments) { ?>
     <li role="presentation">
         <a href="#tab_comments" aria-controls="tab_comments" class="<?php if($this->input->get('tab') == 'comments'){echo 'active';} ?>" role="tab" data-toggle="tab" onclick="get_contract_comments(); return false;">
             <?php echo _l('contract_comments'); ?>
@@ -322,6 +346,8 @@ if ($show_tabs) { ?>
             <span class="badge comments-indicator<?php echo $totalComments == 0 ? ' hide' : ''; ?>"><?php echo $totalComments; ?></span>
         </a>
     </li>
+    <?php } ?>
+    
 <?php if($contract->type=='contracts') { ?>
     <li role="presentation" class="<?php if($this->input->get('tab') == 'risklist'){echo 'active';} ?>">
         <a href="#risklists" aria-controls="risklists" role="tab" data-toggle="tab">
