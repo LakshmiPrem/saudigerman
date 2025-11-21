@@ -2952,7 +2952,7 @@ $lang['copy_custom_fields_convert_to_customer_help']                 = 'If any o
 
 $lang['lead_profile']                                                = 'Profile';
 
-$lang['lead_is_client']                                              = 'Division / Entity';
+$lang['lead_is_client']                                              = 'Branch';
 
 $lang['leads_email_integration_folder_no_encryption']                = 'No Encryption';
 
@@ -3120,7 +3120,7 @@ $lang['import_total_imported']       = 'Total Imported: %s';
 
 $lang['import_leads']                = 'Import Leads';
 
-$lang['import_customers']            = 'Import Divisions / Entity';
+$lang['import_customers']            = 'Import Branches';
 
 $lang['choose_csv_file']             = 'Choose CSV File';
 
@@ -3288,7 +3288,7 @@ $lang['proposal_related']                       = 'Related';
 
 $lang['proposal_for_lead']                      = 'Lead';
 
-$lang['proposal_for_customer']                  = 'Division / Entity';
+$lang['proposal_for_customer']                  = 'Branch';
 
 $lang['proposal']                               = 'Proposal';
 
@@ -3830,7 +3830,7 @@ $lang['report_sales_months_three_months'] = 'Last 3 months';
 
 $lang['report_invoice_number']            = 'Invoice #';
 
-$lang['report_invoice_customer']          = 'Division / Entity';
+$lang['report_invoice_customer']          = 'Branch';
 
 $lang['report_invoice_date']              = 'Date';
 
@@ -4022,7 +4022,7 @@ $lang['estimate_table_hours_heading'] = 'Hours';
 
 # General
 
-$lang['is_customer_indicator']         = 'Division / Entity';
+$lang['is_customer_indicator']         = 'Branch';
 
 $lang['print']                         = 'Print';
 
@@ -4112,7 +4112,7 @@ $lang['project_name']                                        = 'Project Name';
 
 $lang['project_description']                                 = 'Description';
 
-$lang['project_customer']                                    = 'Division / Entity';
+$lang['project_customer']                                    = 'Branch';
 
 $lang['project_start_date']                                  = 'Start Date';
 
@@ -7484,7 +7484,7 @@ $lang['estimate_request_email']                            = 'Email';
 
 $lang['estimate_request_for_lead']                         = 'Lead';
 
-$lang['estimate_request_for_customer']                     = 'Division / Entity';
+$lang['estimate_request_for_customer']                     = 'Branch';
 
 $lang['estimate_request_related']                          = 'Related to';
 
