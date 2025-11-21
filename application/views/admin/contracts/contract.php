@@ -2595,10 +2595,13 @@ $('#compare-btn').on('click', function() {
 }
 #pdf-container {
   position: relative;
-  flex: 1;
   overflow: auto;
   border: 1px solid #ccc;
-  height: 80vh;
+  /* Fixed dimensions - no responsive scaling */
+  width: 900px;
+  height: 695px;
+  max-width: none;
+  min-width: 900px;
 }
 
 .sign-box {
@@ -2692,10 +2695,149 @@ let draggedBox = null;
 let dragOffsetX = 0;
 let dragOffsetY = 0;
 
+// ✅ Track unsaved (newly dragged) placeholders
+let unsavedPlaceholders = {
+  signatures: [],
+  stamps: []
+};
+
+// ✅ Track all current placeholders (both saved and unsaved) for the current session
+let currentSessionPlaceholders = {
+  signatures: [],
+  stamps: []
+};
+
+// ✅ Function to add placeholder to session tracking
+function addPlaceholderToSession(id, name, type, x, y, page) {
+  const placeholderType = type === 'stamp' ? 'stamps' : 'signatures';
+  const placeholderKey = `${id}_${page}`;
+  
+  // Remove existing placeholder for same id and page
+  unsavedPlaceholders[placeholderType] = unsavedPlaceholders[placeholderType].filter(
+    p => !(p.id === id && p.page === page)
+  );
+  currentSessionPlaceholders[placeholderType] = currentSessionPlaceholders[placeholderType].filter(
+    p => !(p.id === id && p.page === page)
+  );
+  
+  // Add new placeholder to both trackers
+  const placeholderData = {
+    id: id,
+    name: name,
+    type: type,
+    x: x,
+    y: y,
+    page: page,
+    key: placeholderKey
+  };
+  
+  unsavedPlaceholders[placeholderType].push(placeholderData);
+  currentSessionPlaceholders[placeholderType].push(placeholderData);
+  
+  console.log('Tracked placeholder:', placeholderData);
+}
+
+// ✅ Function to update placeholder position in session tracking
+function updatePlaceholderPosition(id, page, newX, newY) {
+  const allPlaceholders = [
+    ...currentSessionPlaceholders.signatures,
+    ...currentSessionPlaceholders.stamps
+  ];
+  
+  const placeholder = allPlaceholders.find(p => p.id === id && p.page === page);
+  if (placeholder) {
+    placeholder.x = newX;
+    placeholder.y = newY;
+    
+    // Also update in unsaved placeholders
+    const placeholderType = placeholder.type === 'stamp' ? 'stamps' : 'signatures';
+    const unsavedIndex = unsavedPlaceholders[placeholderType].findIndex(
+      p => p.id === id && p.page === page
+    );
+    if (unsavedIndex !== -1) {
+      unsavedPlaceholders[placeholderType][unsavedIndex].x = newX;
+      unsavedPlaceholders[placeholderType][unsavedIndex].y = newY;
+    }
+  }
+}
+
+// ✅ Function to remove placeholder from session tracking
+function removePlaceholderFromSession(id, page) {
+  const allTypes = ['signatures', 'stamps'];
+  
+  allTypes.forEach(type => {
+    currentSessionPlaceholders[type] = currentSessionPlaceholders[type].filter(
+      p => !(p.id === id && p.page === page)
+    );
+    unsavedPlaceholders[type] = unsavedPlaceholders[type].filter(
+      p => !(p.id === id && p.page === page)
+    );
+  });
+}
+
+// ✅ Initialize session placeholders with saved data on page load
+function initializeSessionPlaceholders() {
+  // Add saved signatures to session tracking
+  if (savedPlaceholders && Array.isArray(savedPlaceholders)) {
+    savedPlaceholders.forEach(a => {
+      // ⭐ Skip signed placeholders
+      const status = (a.status || '').toLowerCase();
+      const approvalStatus = parseInt(a.approval_status) || 0;
+      
+      if (status === 'signed' || approvalStatus === 3) {
+        console.log('Skipping initialization of signed placeholder for:', a.staff_name);
+        return;
+      }
+      
+      if (!a.sign_placeholder || a.sign_placeholder === '[]' || a.sign_placeholder.trim() === '') return;
+      
+      try {
+        const coords = JSON.parse(a.sign_placeholder);
+        if (Array.isArray(coords) && coords.length > 0) {
+          coords.forEach(pos => {
+            addPlaceholderToSession(
+              a.staffid,
+              a.staff_name || 'Approver',
+              'signature',
+              pos.x,
+              pos.y,
+              pos.page
+            );
+          });
+        }
+      } catch (e) {
+        console.warn("Invalid placeholder JSON for approver", a.staff_name);
+      }
+    });
+  }
+  
+  // Add saved stamp to session tracking (unchanged)
+  if (savedStampPlaceholder && savedStampPlaceholder !== '[]' && savedStampPlaceholder.trim() !== '') {
+    try {
+      const coords = JSON.parse(savedStampPlaceholder);
+      if (Array.isArray(coords) && coords.length > 0) {
+        coords.forEach(pos => {
+          addPlaceholderToSession(
+            'company_stamp',
+            'Company Stamp',
+            'stamp',
+            pos.x,
+            pos.y,
+            pos.page
+          );
+        });
+      }
+    } catch (e) {
+      console.warn("Invalid stamp placeholder JSON");
+    }
+  }
+}
+
 // ✅ Load PDF
 pdfjsLib.getDocument(url).promise.then(pdf => {
   pdfDoc = pdf;
   document.getElementById('page-count').textContent = pdfDoc.numPages;
+  initializeSessionPlaceholders(); // Initialize session placeholders
   renderPage(pageNum);
 });
 
@@ -2712,24 +2854,166 @@ function renderPage(num) {
     // Render PDF
     const renderTask = page.render({ canvasContext: ctx, viewport });
     renderTask.promise.then(() => {
-      drawSavedPlaceholders(num);
-      drawSavedStampPlaceholder(num);
+      drawAllPlaceholders(num);
       document.getElementById('page-num').textContent = num;
     });
   });
 }
 
-// ✅ Navigation
-document.getElementById('prev-page').addEventListener('click', () => {
-  if (pageNum <= 1) return;
-  pageNum--;
-  renderPage(pageNum);
-});
-document.getElementById('next-page').addEventListener('click', () => {
-  if (pageNum >= pdfDoc.numPages) return;
-  pageNum++;
-  renderPage(pageNum);
-});
+// ✅ Function to draw ALL placeholders for current page (saved + unsaved)
+function drawAllPlaceholders(pageNum) {
+  // First draw saved placeholders
+  drawSavedPlaceholders(pageNum);
+  drawSavedStampPlaceholder(pageNum);
+  
+  // Then draw session placeholders (includes both saved and newly added)
+  drawSessionPlaceholders(pageNum);
+}
+
+// ✅ Function to draw session placeholders
+function drawSessionPlaceholders(pageNum) {
+  // Draw session signatures
+  // alert();
+  currentSessionPlaceholders.signatures.forEach(placeholder => {
+    if (placeholder.page == pageNum || placeholder.page == 'all') {
+      // ⭐ Check if this approver has signed
+      const approver = savedPlaceholders.find(a => a.staffid == placeholder.id);
+      if (approver) {
+        const status = (approver.status || '').toLowerCase();
+        const approvalStatus = parseInt(approver.approval_status) || 0;
+        // alert(status);
+        if (status == 'signed' || approvalStatus == 3) {
+          console.log('Skipping session placeholder - approver signed:', placeholder.name);
+          return; // Skip this placeholder
+        }
+      }
+      
+      // Check if this placeholder already exists on the page
+      const existingBox = document.querySelector(
+        `.sign-box[data-approver_id="${placeholder.id}"][data-page="${placeholder.page}"]`
+      );
+      
+      if (!existingBox) {
+        const box = createPlaceholderBox(
+          placeholder.id,
+          placeholder.name,
+          'signature',
+          placeholder.x,
+          placeholder.y,
+          placeholder.page,
+          false
+        );
+        pdfContainer.appendChild(box);
+      }
+    }
+  });
+  
+  // Draw session stamps (unchanged)
+  currentSessionPlaceholders.stamps.forEach(placeholder => {
+    if (placeholder.page === pageNum || placeholder.page === 'all') {
+      // Check if this placeholder already exists on the page
+      const existingBox = document.querySelector(
+        `.sign-box[data-type="stamp"][data-approver_id="${placeholder.id}"][data-page="${placeholder.page}"]`
+      );
+      
+      if (!existingBox) {
+        const box = createPlaceholderBox(
+          placeholder.id,
+          placeholder.name,
+          'stamp',
+          placeholder.x,
+          placeholder.y,
+          placeholder.page,
+          false
+        );
+        pdfContainer.appendChild(box);
+      }
+    }
+  });
+}
+
+// ✅ Draw saved placeholders (signatures) - Skip if status is signed
+function drawSavedPlaceholders(pageNum) {
+  // alert();
+  if (!savedPlaceholders || !Array.isArray(savedPlaceholders)) return;
+
+  savedPlaceholders.forEach(a => {
+    // ⭐ Skip if status is 'signed' or approval_status is 3 (signed)
+    const status = (a.status || '').toLowerCase();
+    const approvalStatus = parseInt(a.approval_status) || 0;
+    // alert(status);
+    if (status == 'signed' || approvalStatus == 3) {
+      console.log('Skipping signed placeholder for approver:', a.staff_name);
+      return; // Skip this approver
+    }
+    
+    // ⭐ Show signatures to creator OR to the approver themselves
+    if (!isAdmin && !allowedByAddedFrom && a.staffid != loggedInStaffId) return;
+    
+    if (!a.sign_placeholder || a.sign_placeholder === '[]' || a.sign_placeholder.trim() === '') return;
+    
+    let coords;
+    try {
+      coords = JSON.parse(a.sign_placeholder);
+      if (!Array.isArray(coords) || coords.length === 0) return;
+    } catch (e) {
+      console.warn("Invalid placeholder JSON for approver", a.staff_name);
+      return;
+    }
+
+    coords.forEach(pos => {
+      if (pos.page == pageNum || pos.page == 'all') {
+        // ⭐ Double-check: Don't create box if already signed
+        if (status == 'signed' || approvalStatus == 3) {
+          return;
+        }
+        
+        const box = createPlaceholderBox(
+          a.staffid,
+          a.staff_name || 'Approver',
+          'signature',
+          pos.x,
+          pos.y,
+          pos.page,
+          true
+        );
+        pdfContainer.appendChild(box);
+      }
+    });
+  });
+}
+
+// ✅ Draw saved stamp placeholder
+function drawSavedStampPlaceholder(pageNum) {
+  // ⭐ Only show stamp to stamper or creator
+  if (!isStamper && !allowedByAddedFrom && !isAdmin) return;
+  
+  if (!savedStampPlaceholder || savedStampPlaceholder === '[]' || savedStampPlaceholder.trim() === '') return;
+  
+  let coords;
+  try {
+    coords = JSON.parse(savedStampPlaceholder);
+    if (!Array.isArray(coords) || coords.length === 0) return;
+  } catch (e) {
+    console.warn("Invalid stamp placeholder JSON");
+    return;
+  }
+
+  coords.forEach(pos => {
+    if (pos.page === pageNum || pos.page === 'all') {
+      const box = createPlaceholderBox(
+        'company_stamp',
+        'Company Stamp',
+        'stamp',
+        pos.x,
+        pos.y,
+        pos.page,
+        true
+      );
+      pdfContainer.appendChild(box);
+    }
+  });
+}
 
 // ✅ Helper function to create placeholder box
 function createPlaceholderBox(id, name, type, x, y, page, isSaved = false) {
@@ -2766,8 +3050,8 @@ function createPlaceholderBox(id, name, type, x, y, page, isSaved = false) {
   box.style.top = `${y}px`;
   box.dataset.approver_id = id;
   box.dataset.page = page;
-  box.style.cursor = canEdit ? 'move' : 'default'; // ✅ Only show move cursor if allowed
-  
+  box.style.cursor = canEdit ? 'move' : 'default';
+
   // ✅ Add remove functionality (only if button exists)
   if (canEdit) {
     const removeBtn = box.querySelector('.remove-box');
@@ -2776,7 +3060,9 @@ function createPlaceholderBox(id, name, type, x, y, page, isSaved = false) {
         e.stopPropagation();
         if (confirm('Remove this placeholder?')) {
           box.remove();
-          // Track removal
+          removePlaceholderFromSession(id, page);
+          
+          // Track removal for save function
           setTimeout(() => {
             if (type === 'stamp') {
               const remainingStamps = document.querySelectorAll('.sign-box[data-type="stamp"]');
@@ -2797,12 +3083,16 @@ function createPlaceholderBox(id, name, type, x, y, page, isSaved = false) {
   
   // ✅ Make box draggable on mousedown (only if user has permission)
   if (canEdit) {
+    let isDraggingThisBox = false;
+    let startX, startY;
+    
     box.addEventListener('mousedown', function(e) {
       // Don't start drag if clicking the close button
       if (e.target.classList.contains('remove-box')) return;
       
       e.preventDefault();
       draggedBox = box;
+      isDraggingThisBox = true;
       
       const rect = box.getBoundingClientRect();
       const containerRect = pdfContainer.getBoundingClientRect();
@@ -2810,48 +3100,62 @@ function createPlaceholderBox(id, name, type, x, y, page, isSaved = false) {
       dragOffsetX = e.clientX - rect.left;
       dragOffsetY = e.clientY - rect.top;
       
+      startX = parseFloat(box.style.left);
+      startY = parseFloat(box.style.top);
+      
       box.style.opacity = '0.7';
       box.style.zIndex = '1000';
+    });
+    
+    // Update position during drag
+    box.addEventListener('mousemove', function(e) {
+      if (!isDraggingThisBox || !draggedBox) return;
+      
+      const containerRect = pdfContainer.getBoundingClientRect();
+      const scrollX = pdfContainer.scrollLeft;
+      const scrollY = pdfContainer.scrollTop;
+      
+      let newX = e.clientX - containerRect.left + scrollX - dragOffsetX;
+      let newY = e.clientY - containerRect.top + scrollY - dragOffsetY;
+      
+      // Keep within bounds
+      newX = Math.max(0, Math.min(newX, canvas.width - 150));
+      newY = Math.max(0, Math.min(newY, canvas.height - 60));
+      
+      box.style.left = `${newX}px`;
+      box.style.top = `${newY}px`;
+    });
+    
+    // Finalize position on mouseup
+    box.addEventListener('mouseup', function(e) {
+      if (isDraggingThisBox && draggedBox) {
+        const finalX = parseFloat(box.style.left);
+        const finalY = parseFloat(box.style.top);
+        
+        // Update position in session tracking
+        updatePlaceholderPosition(id, page, finalX, finalY);
+        
+        box.style.opacity = '1';
+        box.style.zIndex = '';
+        draggedBox = null;
+        isDraggingThisBox = false;
+      }
     });
   }
   
   return box;
 }
 
-// ✅ Global mousemove handler for dragging existing boxes
-document.addEventListener('mousemove', function(e) {
-  if (!draggedBox) return;
-  
-  const containerRect = pdfContainer.getBoundingClientRect();
-  const scrollX = pdfContainer.scrollLeft;
-  const scrollY = pdfContainer.scrollTop;
-  
-  let x = e.clientX - containerRect.left + scrollX - dragOffsetX;
-  let y = e.clientY - containerRect.top + scrollY - dragOffsetY;
-  
-  // Keep within bounds
-  x = Math.max(0, Math.min(x, canvas.width - 150));
-  y = Math.max(0, Math.min(y, canvas.height - 60));
-  
-  draggedBox.style.left = `${x}px`;
-  draggedBox.style.top = `${y}px`;
-  
-  // Auto-scroll
-  const offsetY = e.clientY - containerRect.top;
-  if (offsetY < 50) {
-    pdfContainer.scrollTop -= 20;
-  } else if (offsetY > containerRect.height - 50) {
-    pdfContainer.scrollTop += 20;
-  }
+// ✅ Navigation
+document.getElementById('prev-page').addEventListener('click', () => {
+  if (pageNum <= 1) return;
+  pageNum--;
+  renderPage(pageNum);
 });
-
-// ✅ Global mouseup handler
-document.addEventListener('mouseup', function(e) {
-  if (draggedBox) {
-    draggedBox.style.opacity = '1';
-    draggedBox.style.zIndex = '';
-    draggedBox = null;
-  }
+document.getElementById('next-page').addEventListener('click', () => {
+  if (pageNum >= pdfDoc.numPages) return;
+  pageNum++;
+  renderPage(pageNum);
 });
 
 // ✅ Drag/drop logic for NEW placeholders from sidebar
@@ -2891,15 +3195,6 @@ pdfContainer.addEventListener('drop', e => {
       alert('This approver has already signed. Cannot add new placeholder.');
       return;
     }
-  }
-
-  // ⭐ Check for existing placeholder and remove it to prevent duplication
-  const existingBox = document.querySelector(
-    `.sign-box[data-approver_id="${id}"][data-page="${pageNum}"]`
-  );
-  
-  if (existingBox) {
-    existingBox.remove();
   }
 
   const containerRect = pdfContainer.getBoundingClientRect();
@@ -2946,6 +3241,9 @@ pdfContainer.addEventListener('drop', e => {
 
   const box = createPlaceholderBox(id, name, type, x, y, pageNum, false);
   pdfContainer.appendChild(box);
+  
+  // ✅ Track this placeholder in both trackers
+  addPlaceholderToSession(id, name, type, x, y, pageNum);
 });
 
 // ✅ Visual alignment guide when dragging from sidebar
@@ -3047,74 +3345,6 @@ setupDragEvents();
 
 // Re-setup when dropdown changes (called from dropdown change event)
 window.refreshDragEvents = setupDragEvents;
-
-// ✅ Draw saved placeholders (signatures)
-function drawSavedPlaceholders(pageNum) {
-  if (!savedPlaceholders || !Array.isArray(savedPlaceholders)) return;
-
-  savedPlaceholders.forEach(a => {
-    // ⭐ Show signatures to creator OR to the approver themselves
-    if (!isAdmin && !allowedByAddedFrom && a.staffid != loggedInStaffId) return;
-    
-    if (!a.sign_placeholder || a.sign_placeholder === '[]' || a.sign_placeholder.trim() === '') return;
-    
-    let coords;
-    try {
-      coords = JSON.parse(a.sign_placeholder);
-      if (!Array.isArray(coords) || coords.length === 0) return;
-    } catch (e) {
-      console.warn("Invalid placeholder JSON for approver", a.staff_name);
-      return;
-    }
-
-    coords.forEach(pos => {
-      if (pos.page === pageNum || pos.page === 'all') {
-        const box = createPlaceholderBox(
-          a.staffid,
-          a.staff_name || 'Approver',
-          'signature',
-          pos.x,
-          pos.y,
-          pos.page,
-          true
-        );
-        pdfContainer.appendChild(box);
-      }
-    });
-  });
-}
-
-// ✅ Draw saved stamp placeholder
-function drawSavedStampPlaceholder(pageNum) {
-  // ⭐ Only show stamp to stamper or creator
-  if (!isStamper && !allowedByAddedFrom && !isAdmin) return;
-  
-  if (!savedStampPlaceholder || savedStampPlaceholder === '[]' || savedStampPlaceholder.trim() === '') return;
-  
-  let coords;
-  try {
-    coords = JSON.parse(savedStampPlaceholder);
-    if (!Array.isArray(coords) || coords.length === 0) return;
-  } catch (e) {
-    console.warn("Invalid stamp placeholder JSON");
-    return;
-  }
-
-  coords.forEach(pos => {
-    if (pos.page === pageNum || pos.page === 'all') {
-      const box = createPlaceholderBox(
-        'company_stamp',
-        'Company Stamp',
-        'stamp',
-        pos.x,
-        pos.y,
-        pos.page,
-        true
-      );
-      pdfContainer.appendChild(box);
-    }
-  });
-}
 
 // ⭐⭐⭐ FIXED: Page Input Management with proper storage
 $(document).ready(function() {
@@ -3347,6 +3577,12 @@ $('#saveAllPositions').on('click', function() {
         alert_float('success', 'All positions saved successfully.');
       }
       
+      // ✅ Clear all session data after successful save
+      unsavedPlaceholders.signatures = [];
+      unsavedPlaceholders.stamps = [];
+      currentSessionPlaceholders.signatures = [];
+      currentSessionPlaceholders.stamps = [];
+      
       removedApprovers.clear();
       removedStamp.isRemoved = false;
 
@@ -3378,6 +3614,12 @@ document.querySelectorAll('.clear-approver').forEach(btn => {
     
     if (confirm(`Clear all ${count} placeholder(s) for this ${approverId === 'company_stamp' ? 'stamp' : 'approver'}?`)) {
       boxesToRemove.forEach(box => box.remove());
+      
+      // Remove from session tracking
+      boxesToRemove.forEach(box => {
+        const page = box.dataset.page;
+        removePlaceholderFromSession(approverId, page);
+      });
       
       if (approverId === 'company_stamp') {
         removedStamp.isRemoved = true;
