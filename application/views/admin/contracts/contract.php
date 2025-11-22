@@ -2923,95 +2923,31 @@ function renderPage(num) {
   });
 }
 
-// ✅ Function to draw ALL placeholders for current page (saved + unsaved)
-function drawAllPlaceholders(pageNum) {
-  // First draw saved placeholders
-  drawSavedPlaceholders(pageNum);
-  drawSavedStampPlaceholder(pageNum);
-  
-  // Then draw session placeholders (includes both saved and newly added)
-  drawSessionPlaceholders(pageNum);
-}
-
-// ✅ Function to draw session placeholders
-function drawSessionPlaceholders(pageNum) {
-  // Draw session signatures
-  // alert();
-  currentSessionPlaceholders.signatures.forEach(placeholder => {
-    if (placeholder.page == pageNum || placeholder.page == 'all') {
-      // ⭐ Check if this approver has signed
-      const approver = savedPlaceholders.find(a => a.staffid == placeholder.id);
-      if (approver) {
-        const status = (approver.status || '').toLowerCase();
-        const approvalStatus = parseInt(approver.approval_status) || 0;
-        // alert(status);
-        if (status == 'signed' || approvalStatus == 3) {
-          console.log('Skipping session placeholder - approver signed:', placeholder.name);
-          return; // Skip this placeholder
-        }
-      }
-      
-      // Check if this placeholder already exists on the page
-      const existingBox = document.querySelector(
-        `.sign-box[data-approver_id="${placeholder.id}"][data-page="${placeholder.page}"]`
-      );
-      
-      if (!existingBox) {
-        const box = createPlaceholderBox(
-          placeholder.id,
-          placeholder.name,
-          'signature',
-          placeholder.x,
-          placeholder.y,
-          placeholder.page,
-          false
-        );
-        pdfContainer.appendChild(box);
-      }
-    }
-  });
-  
-  // Draw session stamps (unchanged)
-  currentSessionPlaceholders.stamps.forEach(placeholder => {
-    if (placeholder.page === pageNum || placeholder.page === 'all') {
-      // Check if this placeholder already exists on the page
-      const existingBox = document.querySelector(
-        `.sign-box[data-type="stamp"][data-approver_id="${placeholder.id}"][data-page="${placeholder.page}"]`
-      );
-      
-      if (!existingBox) {
-        const box = createPlaceholderBox(
-          placeholder.id,
-          placeholder.name,
-          'stamp',
-          placeholder.x,
-          placeholder.y,
-          placeholder.page,
-          false
-        );
-        pdfContainer.appendChild(box);
-      }
-    }
-  });
-}
-
 // ✅ Draw saved placeholders (signatures) - Skip if status is signed
+// ⭐ FIXED: Only show placeholders based on user role
 function drawSavedPlaceholders(pageNum) {
-  // alert();
   if (!savedPlaceholders || !Array.isArray(savedPlaceholders)) return;
 
   savedPlaceholders.forEach(a => {
     // ⭐ Skip if status is 'signed' or approval_status is 3 (signed)
     const status = (a.status || '').toLowerCase();
     const approvalStatus = parseInt(a.approval_status) || 0;
-    // alert(status);
+    
     if (status == 'signed' || approvalStatus == 3) {
       console.log('Skipping signed placeholder for approver:', a.staff_name);
       return; // Skip this approver
     }
     
-    // ⭐ Show signatures to creator OR to the approver themselves
-    if (!isAdmin && !allowedByAddedFrom && a.staffid != loggedInStaffId) return;
+    // ⭐⭐ NEW VISIBILITY LOGIC:
+    // If user is admin OR creator (allowedByAddedFrom), show all placeholders
+    // Otherwise, only show placeholder if it belongs to the logged-in user
+    if (!isAdmin && !allowedByAddedFrom) {
+      // Not admin/creator - only show own placeholder
+      if (a.staffid != loggedInStaffId) {
+        console.log('Hiding placeholder - not owned by user:', a.staff_name);
+        return;
+      }
+    }
     
     if (!a.sign_placeholder || a.sign_placeholder === '[]' || a.sign_placeholder.trim() === '') return;
     
@@ -3046,39 +2982,152 @@ function drawSavedPlaceholders(pageNum) {
   });
 }
 
-// ✅ Draw saved stamp placeholder
-function drawSavedStampPlaceholder(pageNum) {
-  // ⭐ Only show stamp to stamper or creator
-  if (!isStamper && !allowedByAddedFrom && !isAdmin) return;
-  
-  if (!savedStampPlaceholder || savedStampPlaceholder === '[]' || savedStampPlaceholder.trim() === '') return;
-  
-  let coords;
-  try {
-    coords = JSON.parse(savedStampPlaceholder);
-    if (!Array.isArray(coords) || coords.length === 0) return;
-  } catch (e) {
-    console.warn("Invalid stamp placeholder JSON");
-    return;
-  }
-
-  coords.forEach(pos => {
-    if (pos.page === pageNum || pos.page === 'all') {
-      const box = createPlaceholderBox(
-        'company_stamp',
-        'Company Stamp',
-        'stamp',
-        pos.x,
-        pos.y,
-        pos.page,
-        true
+// ✅ Function to draw session placeholders
+// ⭐ FIXED: Apply same visibility rules to session placeholders
+function drawSessionPlaceholders(pageNum) {
+  // Draw session signatures
+  currentSessionPlaceholders.signatures.forEach(placeholder => {
+    if (placeholder.page == pageNum || placeholder.page == 'all') {
+      // ⭐ Check if this approver has signed
+      const approver = savedPlaceholders.find(a => a.staffid == placeholder.id);
+      if (approver) {
+        const status = (approver.status || '').toLowerCase();
+        const approvalStatus = parseInt(approver.approval_status) || 0;
+        
+        if (status == 'signed' || approvalStatus == 3) {
+          console.log('Skipping session placeholder - approver signed:', placeholder.name);
+          return; // Skip this placeholder
+        }
+      }
+      
+      // ⭐⭐ NEW VISIBILITY LOGIC for session placeholders:
+      // If user is admin OR creator, show all placeholders
+      // Otherwise, only show placeholder if it belongs to the logged-in user
+      if (!isAdmin && !allowedByAddedFrom) {
+        // Not admin/creator - only show own placeholder
+        if (placeholder.id != loggedInStaffId) {
+          console.log('Hiding session placeholder - not owned by user:', placeholder.name);
+          return;
+        }
+      }
+      
+      // Check if this placeholder already exists on the page
+      const existingBox = document.querySelector(
+        `.sign-box[data-approver_id="${placeholder.id}"][data-page="${placeholder.page}"]`
       );
-      pdfContainer.appendChild(box);
+      
+      if (!existingBox) {
+        const box = createPlaceholderBox(
+          placeholder.id,
+          placeholder.name,
+          'signature',
+          placeholder.x,
+          placeholder.y,
+          placeholder.page,
+          false
+        );
+        pdfContainer.appendChild(box);
+      }
+    }
+  });
+  
+  // Draw session stamps
+  // ⭐ Stamps already have correct visibility logic - unchanged
+  currentSessionPlaceholders.stamps.forEach(placeholder => {
+    if (placeholder.page === pageNum || placeholder.page === 'all') {
+      // Check if this placeholder already exists on the page
+      const existingBox = document.querySelector(
+        `.sign-box[data-type="stamp"][data-approver_id="${placeholder.id}"][data-page="${placeholder.page}"]`
+      );
+      
+      if (!existingBox) {
+        const box = createPlaceholderBox(
+          placeholder.id,
+          placeholder.name,
+          'stamp',
+          placeholder.x,
+          placeholder.y,
+          placeholder.page,
+          false
+        );
+        pdfContainer.appendChild(box);
+      }
     }
   });
 }
 
+// ✅ Initialize session placeholders with saved data on page load
+// ⭐ FIXED: Apply visibility rules during initialization
+function initializeSessionPlaceholders() {
+  // Add saved signatures to session tracking
+  if (savedPlaceholders && Array.isArray(savedPlaceholders)) {
+    savedPlaceholders.forEach(a => {
+      // ⭐ Skip signed placeholders
+      const status = (a.status || '').toLowerCase();
+      const approvalStatus = parseInt(a.approval_status) || 0;
+      
+      if (status === 'signed' || approvalStatus === 3) {
+        console.log('Skipping initialization of signed placeholder for:', a.staff_name);
+        return;
+      }
+      
+      // ⭐⭐ NEW VISIBILITY CHECK during initialization:
+      // If user is admin OR creator, initialize all placeholders
+      // Otherwise, only initialize placeholder if it belongs to the logged-in user
+      if (!isAdmin && !allowedByAddedFrom) {
+        if (a.staffid != loggedInStaffId) {
+          console.log('Skipping initialization - not owned by user:', a.staff_name);
+          return;
+        }
+      }
+      
+      if (!a.sign_placeholder || a.sign_placeholder === '[]' || a.sign_placeholder.trim() === '') return;
+      
+      try {
+        const coords = JSON.parse(a.sign_placeholder);
+        if (Array.isArray(coords) && coords.length > 0) {
+          coords.forEach(pos => {
+            addPlaceholderToSession(
+              a.staffid,
+              a.staff_name || 'Approver',
+              'signature',
+              pos.x,
+              pos.y,
+              pos.page
+            );
+          });
+        }
+      } catch (e) {
+        console.warn("Invalid placeholder JSON for approver", a.staff_name);
+      }
+    });
+  }
+  
+  // Add saved stamp to session tracking
+  // ⭐ Stamp visibility already correct - unchanged
+  if (savedStampPlaceholder && savedStampPlaceholder !== '[]' && savedStampPlaceholder.trim() !== '') {
+    try {
+      const coords = JSON.parse(savedStampPlaceholder);
+      if (Array.isArray(coords) && coords.length > 0) {
+        coords.forEach(pos => {
+          addPlaceholderToSession(
+            'company_stamp',
+            'Company Stamp',
+            'stamp',
+            pos.x,
+            pos.y,
+            pos.page
+          );
+        });
+      }
+    } catch (e) {
+      console.warn("Invalid stamp placeholder JSON");
+    }
+  }
+}
+
 // ✅ Helper function to create placeholder box
+// ⭐ FIXED: Update permission logic for editing
 function createPlaceholderBox(id, name, type, x, y, page, isSaved = false) {
   const box = document.createElement('div');
   box.className = 'sign-box' + (isSaved ? ' saved-placeholder' : '');
@@ -3088,14 +3137,14 @@ function createPlaceholderBox(id, name, type, x, y, page, isSaved = false) {
   
   const pageLabel = page === 'all' ? 'all' : 'p' + page;
   
-  // ⭐ Determine if user can edit this placeholder
+  // ⭐⭐ UPDATED EDIT PERMISSION LOGIC:
   let canEdit = false;
   if (type === 'stamp') {
-    // ✅ For stamps: only stamper can edit
-    canEdit = isStamper;
+    // ✅ For stamps: only stamper OR creator can edit
+    canEdit = isStamper || allowedByAddedFrom;
   } else {
     // ✅ For signatures: only creator can edit
-    canEdit = allowedByAddedFrom;
+    canEdit = allowedByAddedFrom || isAdmin;
   }
   
   // ✅ Only show close button if user has permission
